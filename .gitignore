@@ -4,6 +4,8 @@ Cargo.lock
 
 # WASM build output
 /pkg/
+/web/*.wasm
+/web/image_optimizer.js
 
 # IDE
 .idea/

@@ -189,15 +189,70 @@
         .options-panel {
             background: var(--bg-secondary);
             border-radius: 10px;
-            padding: 0.6rem 1rem;
+            padding: 1rem 1.25rem;
             margin: 1rem 0;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 1.25rem;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
             animation: fadeIn 0.8s ease-out 0.4s both;
             box-shadow: 0 4px 24px var(--shadow-soft);
             border: 1px solid var(--border);
+        }
+
+        .options-column {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            padding: 0 0.5rem;
+            border-right: 1px solid var(--border);
+        }
+
+        .options-column:last-child {
+            border-right: none;
+        }
+
+        .options-column-header {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            font-weight: 500;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 0.25rem;
+        }
+
+        .options-column-content {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .options-subsection {
+            background: rgba(0, 0, 0, 0.03);
+            border-radius: 6px;
+            padding: 0.6rem;
+            margin-top: 0.25rem;
+        }
+
+        .options-subsection-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .options-subsection-desc {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+            margin-bottom: 0.5rem;
+        }
+
+        .options-subsection-content {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
         }
 
         .option-group {
@@ -207,7 +262,7 @@
         }
 
         .option-group.slider-group {
-            width: 140px;
+            width: 100%;
         }
 
         .option-group.toggle-group {
@@ -233,20 +288,15 @@
             font-weight: 500;
         }
 
-        .options-divider {
-            width: 1px;
-            height: 28px;
-            background: var(--border);
-        }
-
         .option-group.input-group {
             flex-direction: row;
             align-items: center;
             gap: 0.4rem;
+            flex-wrap: wrap;
         }
 
         .size-input {
-            width: 65px;
+            width: 60px;
             padding: 0.4rem 0.5rem;
             border: 1px solid var(--border);
             border-radius: 4px;
@@ -346,6 +396,7 @@
             font-size: 0.8rem;
             color: var(--text-primary);
         }
+
 
         /* Results Section */
         .results-section {
@@ -724,6 +775,22 @@
         }
 
         /* Responsive */
+        @media (max-width: 900px) {
+            .options-panel {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .options-column:nth-child(2) {
+                border-right: none;
+            }
+
+            .options-column:nth-child(3),
+            .options-column:nth-child(4) {
+                border-top: 1px solid var(--border);
+                padding-top: 1rem;
+            }
+        }
+
         @media (max-width: 768px) {
             .logo {
                 font-size: 2.5rem;
@@ -738,16 +805,35 @@
                 gap: 0.75rem;
             }
 
-            .option-group.slider-group {
-                width: 100%;
-            }
-
             .stats-bar {
                 padding: 1rem;
             }
 
             .stat-value {
                 font-size: 1.5rem;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .options-panel {
+                grid-template-columns: 1fr;
+            }
+
+            .options-column {
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                padding-bottom: 1rem;
+            }
+
+            .options-column:last-child {
+                border-bottom: none;
+                padding-bottom: 0;
+            }
+
+            .options-column:nth-child(3),
+            .options-column:nth-child(4) {
+                border-top: none;
+                padding-top: 0;
             }
         }
     </style>
@@ -788,44 +874,75 @@
             </div>
 
             <div class="options-panel">
-                <div class="option-group slider-group">
-                    <label>JPEG Quality <span class="value-display" id="jpegQualityValue">85</span></label>
-                    <input type="range" id="jpegQuality" min="1" max="100" value="85">
+                <!-- JPEG Column -->
+                <div class="options-column">
+                    <div class="options-column-header">JPEG</div>
+                    <div class="options-column-content">
+                        <div class="option-group slider-group">
+                            <label>Quality <span class="value-display" id="jpegQualityValue">85</span></label>
+                            <input type="range" id="jpegQuality" min="1" max="100" value="85">
+                        </div>
+                    </div>
                 </div>
 
-                <div class="option-group slider-group">
-                    <label>PNG Level <span class="value-display" id="pngCompressionValue">6</span></label>
-                    <input type="range" id="pngCompression" min="0" max="9" value="6">
+                <!-- PNG Column -->
+                <div class="options-column">
+                    <div class="options-column-header">PNG</div>
+                    <div class="options-column-content">
+                        <div class="option-group slider-group">
+                            <label>Level <span class="value-display" id="pngCompressionValue">6</span></label>
+                            <input type="range" id="pngCompression" min="0" max="9" value="6">
+                        </div>
+
+                        <div class="options-subsection">
+                            <div class="options-subsection-header">
+                                <div class="option-group toggle-group">
+                                    <div class="toggle active" id="pngAuto"></div>
+                                    <label>Auto</label>
+                                </div>
+                            </div>
+                            <p class="options-subsection-desc">
+                                Picks optimal format: indexed palette for simple images, full RGB for complex ones.
+                            </p>
+                            <div class="options-subsection-content">
+                                <div id="pngAutoLevelGroup" class="option-group slider-group">
+                                    <label>Effort <span class="value-display" id="pngAutoLevelValue">5</span></label>
+                                    <input type="range" id="pngAutoLevel" min="1" max="10" value="5">
+                                </div>
+                                <div id="manualPngOptions" class="option-group slider-group" style="opacity: 0.4; pointer-events: none;">
+                                    <label>Colors <span class="value-display" id="pngColorsValue">256</span></label>
+                                    <input type="range" id="pngColors" min="2" max="256" value="256">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="options-divider"></div>
-
-                <div class="option-group toggle-group">
-                    <div class="toggle active" id="stripMetadata"></div>
-                    <label>Strip EXIF</label>
+                <!-- Resize Column -->
+                <div class="options-column">
+                    <div class="options-column-header">Resize</div>
+                    <div class="options-column-content">
+                        <div class="option-group toggle-group">
+                            <div class="toggle" id="resizeEnabled"></div>
+                            <label>Enable</label>
+                        </div>
+                        <div id="resizeOptions" class="option-group input-group" style="opacity: 0.4; pointer-events: none;">
+                            <label>Max</label>
+                            <input type="number" id="maxWidth" value="1200" min="1" max="10000" class="size-input"> × 
+                            <input type="number" id="maxHeight" value="1200" min="1" max="10000" class="size-input">
+                        </div>
+                    </div>
                 </div>
 
-                <div class="option-group toggle-group">
-                    <div class="toggle active" id="pngAuto"></div>
-                    <label>Auto PNG</label>
-                </div>
-
-                <div id="manualPngOptions" class="option-group slider-group" style="opacity: 0.4; pointer-events: none;">
-                    <label>Colors <span class="value-display" id="pngColorsValue">256</span></label>
-                    <input type="range" id="pngColors" min="2" max="256" value="256">
-                </div>
-
-                <div class="options-divider"></div>
-
-                <div class="option-group toggle-group">
-                    <div class="toggle" id="resizeEnabled"></div>
-                    <label>Resize</label>
-                </div>
-
-                <div id="resizeOptions" class="option-group input-group" style="opacity: 0.4; pointer-events: none;">
-                    <label>Max</label>
-                    <input type="number" id="maxWidth" value="1200" min="1" max="10000" class="size-input"> × 
-                    <input type="number" id="maxHeight" value="1200" min="1" max="10000" class="size-input">
+                <!-- Others Column -->
+                <div class="options-column">
+                    <div class="options-column-header">Others</div>
+                    <div class="options-column-content">
+                        <div class="option-group toggle-group">
+                            <div class="toggle active" id="stripMetadata"></div>
+                            <label>Strip EXIF</label>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -928,6 +1045,7 @@
                 png_compression: parseInt(document.getElementById('pngCompression').value),
                 strip_metadata: document.getElementById('stripMetadata').classList.contains('active'),
                 png_auto: document.getElementById('pngAuto').classList.contains('active'),
+                png_auto_level: parseInt(document.getElementById('pngAutoLevel').value),
                 png_quantize: false,
                 png_colors: parseInt(document.getElementById('pngColors').value),
                 resize_enabled: document.getElementById('resizeEnabled').classList.contains('active'),
@@ -1074,6 +1192,11 @@
             }, 1000);
         }
 
+        // Helper to yield to browser for UI updates
+        function nextFrame() {
+            return new Promise(resolve => requestAnimationFrame(resolve));
+        }
+
         // Handle file selection
         async function handleFiles(files) {
             if (!wasmReady) {
@@ -1116,6 +1239,9 @@
             }
             updateGrid();
 
+            // Give the browser a frame to render the progress bar before heavy processing
+            await nextFrame();
+
             // Process images in parallel
             let completed = 0;
             const total = validFiles.length;
@@ -1124,6 +1250,8 @@
                 const imageIndex = images.findIndex(img => img.originalFile === file && img.processing);
                 
                 if (imageIndex !== -1) {
+                    // Yield before each file to keep UI responsive
+                    await nextFrame();
                     const result = await processImage(file, images[imageIndex].id);
                     images[imageIndex] = result;
                     completed++;
@@ -1200,6 +1328,9 @@
             const pngCompression = document.getElementById('pngCompression');
             const pngColors = document.getElementById('pngColors');
             const pngAuto = document.getElementById('pngAuto');
+            const pngAutoLevelGroup = document.getElementById('pngAutoLevelGroup');
+            const pngAutoLevel = document.getElementById('pngAutoLevel');
+            const pngAutoLevelValue = document.getElementById('pngAutoLevelValue');
             const manualPngOptions = document.getElementById('manualPngOptions');
             const stripMetadata = document.getElementById('stripMetadata');
             const resizeEnabled = document.getElementById('resizeEnabled');
@@ -1248,6 +1379,13 @@
                 const isAuto = pngAuto.classList.contains('active');
                 manualPngOptions.style.opacity = isAuto ? '0.4' : '1';
                 manualPngOptions.style.pointerEvents = isAuto ? 'none' : 'auto';
+                pngAutoLevelGroup.style.opacity = isAuto ? '1' : '0.4';
+                pngAutoLevelGroup.style.pointerEvents = isAuto ? 'auto' : 'none';
+            });
+
+            // PNG Auto Level slider
+            pngAutoLevel.addEventListener('input', (e) => {
+                pngAutoLevelValue.textContent = e.target.value;
             });
 
             resizeEnabled.addEventListener('click', () => {

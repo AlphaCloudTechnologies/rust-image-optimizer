@@ -19,6 +19,7 @@ pub struct OptimizeOptions {
     pub png_quantize: bool,      // Enable color quantization for PNG (lossy)
     pub png_colors: u16,         // Target colors for quantization (2-256)
     pub png_auto: bool,          // Auto mode: automatically find best settings
+    pub png_auto_level: u8,      // Auto mode level: 1=Light, 2=Balanced, 3=Maximum
     pub resize_enabled: bool,    // Enable resizing
     pub max_width: u32,          // Maximum width
     pub max_height: u32,         // Maximum height
@@ -48,6 +49,7 @@ impl Default for OptimizeOptions {
             png_quantize: false,
             png_colors: 256,
             png_auto: true,  // Auto mode enabled by default
+            png_auto_level: 5,  // Default to balanced (1-10 scale)
             resize_enabled: false,
             max_width: 1200,
             max_height: 1200,
@@ -224,7 +226,7 @@ fn optimize_png(data: &[u8], options: &OptimizeOptions) -> Result<OptimizeOutput
         // Auto mode: intelligently try different color counts based on image
         if unique_colors > 256 {
             // Try multiple quantization levels and pick the best
-            let color_levels = auto_select_color_levels(unique_colors);
+            let color_levels = auto_select_color_levels(unique_colors, options.png_auto_level);
             for colors in color_levels {
                 if let Ok(quantized) = try_quantized_png(&rgba, width, height, colors, options) {
                     outputs.push(quantized);
@@ -274,22 +276,28 @@ fn count_unique_colors(rgba: &image::RgbaImage) -> usize {
     colors.len()
 }
 
-/// Auto-select color levels to try based on unique color count
-fn auto_select_color_levels(unique_colors: usize) -> Vec<usize> {
-    // For images with many colors, try a range of palette sizes
-    // More colors = try more options
-    if unique_colors > 10000 {
-        // Very colorful image (photo-like): try aggressive reduction
-        vec![256, 128, 64]
-    } else if unique_colors > 1000 {
-        // Moderately colorful: try moderate reduction
-        vec![256, 128]
-    } else if unique_colors > 256 {
-        // Just over the limit: try full palette
-        vec![256]
-    } else {
-        // Already under 256, no quantization needed
-        vec![]
+/// Auto-select color levels to try based on auto level
+/// Higher effort = more aggressive color reduction = smaller files but potentially lower quality
+fn auto_select_color_levels(unique_colors: usize, auto_level: u8) -> Vec<usize> {
+    if unique_colors <= 256 {
+        // Already under 256 colors, no quantization needed
+        return vec![];
+    }
+    
+    // Each effort level tries increasingly aggressive color reduction
+    // The minimum color count decreases as effort increases
+    match auto_level {
+        1 => vec![256],                              // Lossless-ish only
+        2 => vec![256, 224],                         // Very light
+        3 => vec![256, 192, 160],                    // Light
+        4 => vec![256, 192, 128],                    // Light-medium
+        5 => vec![256, 192, 128, 96],                // Medium (default)
+        6 => vec![256, 192, 128, 64],                // Medium-aggressive
+        7 => vec![256, 192, 128, 64, 48],            // Aggressive
+        8 => vec![256, 192, 128, 64, 32],            // More aggressive
+        9 => vec![256, 192, 128, 64, 32, 24],        // Very aggressive
+        10 => vec![256, 192, 128, 64, 32, 24, 16],   // Maximum compression
+        _ => vec![256, 192, 128, 96],                // Default fallback
     }
 }
 

@@ -102,7 +102,7 @@
 
         .tagline {
             color: var(--text-secondary);
-            font-size: 0.9rem;
+            font-size: 1rem;
             letter-spacing: 0.1em;
             text-transform: uppercase;
         }
@@ -158,14 +158,14 @@
 
         .upload-zone h2 {
             font-family: var(--font-serif);
-            font-size: 1.3rem;
+            font-size: 1.5rem;
             font-weight: 400;
             margin-bottom: 0.2rem;
         }
 
         .upload-zone p {
             color: var(--text-secondary);
-            font-size: 0.85rem;
+            font-size: 1rem;
         }
 
         .upload-zone .formats {
@@ -177,9 +177,9 @@
 
         .format-tag {
             background: var(--bg-tertiary);
-            padding: 0.25rem 0.6rem;
+            padding: 0.3rem 0.7rem;
             border-radius: 10px;
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             color: var(--text-secondary);
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -212,7 +212,7 @@
         }
 
         .options-column-header {
-            font-size: 0.7rem;
+            font-size: 0.85rem;
             text-transform: uppercase;
             letter-spacing: 0.1em;
             color: var(--text-muted);
@@ -243,7 +243,7 @@
         }
 
         .options-subsection-desc {
-            font-size: 0.65rem;
+            font-size: 0.8rem;
             color: var(--text-muted);
             line-height: 1.4;
             margin-bottom: 0.5rem;
@@ -272,7 +272,7 @@
         }
 
         .option-group label {
-            font-size: 0.7rem;
+            font-size: 0.85rem;
             text-transform: uppercase;
             letter-spacing: 0.08em;
             color: var(--text-secondary);
@@ -283,7 +283,7 @@
 
         .option-group .value-display {
             font-family: var(--font-mono);
-            font-size: 0.8rem;
+            font-size: 0.95rem;
             color: var(--accent);
             font-weight: 500;
         }
@@ -296,12 +296,12 @@
         }
 
         .size-input {
-            width: 60px;
+            width: 70px;
             padding: 0.4rem 0.5rem;
             border: 1px solid var(--border);
             border-radius: 4px;
             font-family: var(--font-mono);
-            font-size: 0.8rem;
+            font-size: 0.95rem;
             background: var(--bg-tertiary);
             color: var(--text-primary);
             text-align: center;
@@ -393,7 +393,7 @@
         }
 
         .toggle-label {
-            font-size: 0.8rem;
+            font-size: 0.95rem;
             color: var(--text-primary);
         }
 
@@ -414,7 +414,7 @@
 
         .results-header h3 {
             font-family: var(--font-serif);
-            font-size: 1.5rem;
+            font-size: 1.75rem;
             font-weight: 400;
         }
 
@@ -430,7 +430,7 @@
             padding: 0.75rem 1.5rem;
             border-radius: 12px;
             font-family: var(--font-mono);
-            font-size: 0.85rem;
+            font-size: 1rem;
             cursor: pointer;
             transition: all 0.2s ease;
             border: none;
@@ -478,9 +478,9 @@
 
         .image-table th {
             background: var(--bg-tertiary);
-            padding: 0.6rem 0.75rem;
+            padding: 0.75rem;
             text-align: left;
-            font-size: 0.75rem;
+            font-size: 0.9rem;
             font-weight: 500;
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -493,9 +493,9 @@
         }
 
         .image-table td {
-            padding: 0.5rem 0.75rem;
+            padding: 1rem 0.75rem;
             border-bottom: 1px solid var(--border);
-            font-size: 0.85rem;
+            font-size: 1rem;
             vertical-align: middle;
         }
 
@@ -509,8 +509,8 @@
 
         .table-preview-container {
             position: relative;
-            width: 48px;
-            height: 36px;
+            width: 120px;
+            height: 90px;
             cursor: pointer;
         }
 
@@ -519,9 +519,9 @@
         }
 
         .table-preview {
-            width: 48px;
-            height: 36px;
-            border-radius: 4px;
+            width: 120px;
+            height: 90px;
+            border-radius: 8px;
             object-fit: cover;
             background: var(--bg-tertiary);
             transition: box-shadow 0.2s ease, transform 0.2s ease;
@@ -530,6 +530,35 @@
         .table-preview-container[data-original-url]:hover .table-preview {
             box-shadow: 0 0 0 2px var(--accent);
             transform: scale(1.05);
+        }
+
+        .table-preview-container.is-processing::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(217, 78, 31, 0.3);
+            border-radius: 8px;
+            animation: processing-overlay 1s ease-in-out infinite;
+        }
+
+        .table-preview-container.is-processing::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 24px;
+            height: 24px;
+            margin: -12px 0 0 -12px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            z-index: 1;
+        }
+
+        @keyframes processing-overlay {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.5; }
         }
 
         /* Global tooltip that appears outside table */
@@ -650,50 +679,180 @@
             visibility: visible;
         }
 
-        .table-filename {
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 200px;
-            display: block;
+
+        .table-details {
+            line-height: 1.7;
         }
 
-        .table-size {
+        .table-details .detail-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .table-details .detail-label {
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            font-size: 0.8rem;
+            min-width: 36px;
+        }
+
+        .table-details .detail-value {
+            color: var(--text-primary);
+        }
+
+        .table-details .detail-value.changed {
+            color: var(--accent);
+        }
+
+        .table-details .detail-value.reduced {
+            color: var(--success);
+        }
+
+        .table-details .detail-arrow {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+        }
+
+        .table-size-info {
+            line-height: 1.7;
+        }
+
+        .table-size-info .size-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .table-size-info .size-original {
             color: var(--text-secondary);
-            white-space: nowrap;
         }
 
-        .table-size.reduced {
+        .table-size-info .size-arrow {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .table-size-info .size-optimized {
             color: var(--success);
             font-weight: 500;
         }
 
-        .table-dims {
-            color: var(--text-secondary);
-            white-space: nowrap;
-            font-size: 0.75rem;
+        .table-size-info .size-savings {
+            display: inline-block;
+            background: rgba(45, 138, 78, 0.12);
+            color: var(--success);
+            padding: 0.25rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-left: 0.35rem;
         }
 
-        .table-dims.resized {
-            color: var(--accent);
+        .table-size-info .size-savings.negative {
+            background: rgba(201, 59, 59, 0.12);
+            color: var(--error);
+        }
+
+        .table-file-info {
+            max-width: 220px;
+        }
+
+        .table-file-info .file-name {
+            font-weight: 500;
+            font-size: 1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+            margin-bottom: 0.35rem;
+        }
+
+        .table-file-info .file-format {
+            display: inline-block;
+            background: var(--bg-tertiary);
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.03em;
+        }
+
+        .table-file-info .file-status {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            margin-left: 0.35rem;
+        }
+
+        .table-file-info .file-status.processing {
+            background: linear-gradient(90deg, var(--accent), #ff6b35, var(--accent));
+            background-size: 200% 100%;
+            color: white;
+            font-weight: 600;
+            animation: processing-gradient 1.5s ease-in-out infinite, processing-pulse 0.8s ease-in-out infinite;
+            padding: 0.25rem 0.7rem;
+        }
+
+        @keyframes processing-gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes processing-pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.9; }
+        }
+
+        .table-row-processing {
+            animation: row-processing 1s ease-in-out infinite;
+        }
+
+        @keyframes row-processing {
+            0%, 100% { background-color: transparent; }
+            50% { background-color: rgba(217, 78, 31, 0.08); }
+        }
+
+        .processing-spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        .table-file-info .file-status.error {
+            background: rgba(201, 59, 59, 0.15);
+            color: var(--error);
         }
 
         .table-settings {
-            font-size: 0.7rem;
+            font-size: 0.9rem;
             color: var(--text-secondary);
             line-height: 1.5;
+            white-space: nowrap;
         }
 
         .table-settings .setting-line {
             display: block;
-            white-space: nowrap;
         }
 
         .table-settings .setting-label {
             color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.03em;
+            letter-spacing: 0.02em;
+            font-size: 0.8rem;
         }
 
         .table-settings .setting-value {
@@ -701,52 +860,9 @@
             font-weight: 500;
         }
 
-        .table-savings {
-            display: inline-block;
-            background: rgba(45, 138, 78, 0.1);
-            color: var(--success);
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            white-space: nowrap;
-        }
-
-        .table-savings.negative {
-            background: rgba(201, 59, 59, 0.1);
-            color: var(--error);
-        }
-
-        .table-status {
-            display: inline-block;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            color: white;
-        }
-
-        .table-status.success {
-            background: var(--success);
-        }
-
-        .table-status.error {
-            background: var(--error);
-        }
-
-        .table-status.processing {
-            background: var(--accent);
-            animation: pulse-badge 1.5s ease-in-out infinite;
-        }
-
         @keyframes pulse-badge {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.6; }
-        }
-
-        .table-actions {
-            display: flex;
-            gap: 0.35rem;
-            justify-content: flex-end;
         }
 
         .image-table {
@@ -774,7 +890,7 @@
             align-items: center;
             gap: 0.5rem;
             color: white;
-            font-size: 0.8rem;
+            font-size: 0.95rem;
             white-space: nowrap;
         }
 
@@ -804,20 +920,22 @@
 
         .progress-count {
             color: white;
-            font-size: 0.8rem;
+            font-size: 0.95rem;
             font-weight: 500;
         }
 
         .table-btn {
-            padding: 0.35rem 0.6rem;
-            border-radius: 4px;
+            padding: 0.45rem 0.7rem;
+            border-radius: 5px;
             font-family: var(--font-mono);
-            font-size: 0.75rem;
+            font-size: 0.95rem;
             cursor: pointer;
             transition: all 0.2s ease;
             border: 1px solid var(--border);
             background: var(--bg-tertiary);
             color: var(--text-primary);
+            min-width: 34px;
+            text-align: center;
         }
 
         .table-btn:hover {
@@ -831,6 +949,46 @@
 
         .table-btn.remove:hover {
             border-color: var(--error);
+            background: rgba(201, 59, 59, 0.1);
+        }
+
+        .table-btn.retry-btn {
+            color: var(--accent);
+            font-size: 1.1rem;
+        }
+
+        .table-btn.retry-btn:hover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .table-btn.download-btn {
+            color: white;
+            background: var(--success);
+            border-color: var(--success);
+            font-size: 0.9rem;
+        }
+
+        .table-btn.download-btn:hover {
+            background: #258a42;
+            border-color: #258a42;
+        }
+
+        .table-btn.to-jpeg-btn {
+            color: #0088cc;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .table-btn.to-jpeg-btn:hover {
+            border-color: #0088cc;
+            background: rgba(0, 136, 204, 0.1);
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 0.35rem;
+            justify-content: flex-end;
         }
 
         /* Stats Bar */
@@ -853,12 +1011,12 @@
 
         .stat-value {
             font-family: var(--font-serif);
-            font-size: 2rem;
+            font-size: 2.25rem;
             color: var(--accent);
         }
 
         .stat-label {
-            font-size: 0.85rem;
+            font-size: 0.95rem;
             color: var(--text-secondary);
             text-transform: uppercase;
             letter-spacing: 0.1em;
@@ -908,7 +1066,7 @@
         .loading-text {
             margin-top: 1rem;
             color: var(--text-secondary);
-            font-size: 0.9rem;
+            font-size: 1rem;
         }
 
         /* Empty state */
@@ -1145,15 +1303,12 @@
                 <table class="image-table" id="imageTable">
                     <thead>
                         <tr>
-                            <th>Preview</th>
-                            <th>Filename</th>
-                            <th>Dimensions</th>
-                            <th>Original</th>
-                            <th>Optimized</th>
-                            <th>Savings</th>
+                            <th></th>
+                            <th>File</th>
+                            <th>Details</th>
+                            <th>Size</th>
                             <th>Settings</th>
-                            <th>Status</th>
-                            <th>Actions</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody id="imageGrid"></tbody>
@@ -1184,7 +1339,7 @@
     </div>
 
     <script type="module">
-        import init, { optimize_image, get_default_options } from './image_optimizer.js';
+        import init, { optimize_image, get_default_options, convert_png_to_jpeg } from './image_optimizer.js';
 
         let wasmReady = false;
         let images = [];
@@ -1257,7 +1412,11 @@
                     originalHeight: result.original_height,
                     newWidth: result.new_width,
                     newHeight: result.new_height,
-                    options: { ...options }
+                    options: { ...options },
+                    originalPalette: result.original_palette || [],
+                    optimizedPalette: result.optimized_palette || [],
+                    originalColors: result.original_colors || 0,
+                    optimizedColors: result.optimized_colors || 0
                 };
             } catch (error) {
                 return {
@@ -1274,7 +1433,11 @@
                     originalHeight: 0,
                     newWidth: 0,
                     newHeight: 0,
-                    options: { ...options }
+                    options: { ...options },
+                    originalPalette: [],
+                    optimizedPalette: [],
+                    originalColors: 0,
+                    optimizedColors: 0
                 };
             }
         }
@@ -1292,7 +1455,8 @@
                 let lines = [];
                 lines.push(`<span class="setting-line"><span class="setting-label">Level:</span> <span class="setting-value">${opts.png_compression}</span></span>`);
                 if (opts.png_auto) {
-                    lines.push(`<span class="setting-line"><span class="setting-label">Auto:</span> <span class="setting-value">On</span> <span class="setting-label">Effort:</span> <span class="setting-value">${opts.png_auto_level}</span></span>`);
+                    lines.push(`<span class="setting-line"><span class="setting-label">Auto:</span> <span class="setting-value">On</span></span>`);
+                    lines.push(`<span class="setting-line"><span class="setting-label">Effort:</span> <span class="setting-value">${opts.png_auto_level}</span></span>`);
                 } else if (opts.png_quantize) {
                     lines.push(`<span class="setting-line"><span class="setting-label">Colors:</span> <span class="setting-value">${opts.png_colors}</span></span>`);
                 }
@@ -1328,6 +1492,15 @@
                     : `${image.newWidth}×${image.newHeight}`)
                 : '—';
 
+            // Format colors
+            const colorsChanged = image.success && image.originalColors !== image.optimizedColors;
+            const colorsText = image.success 
+                ? (colorsChanged 
+                    ? `${image.originalColors}<span class="color-arrow">→</span>${image.optimizedColors}`
+                    : `${image.originalColors}`)
+                : '—';
+            const colorsReduced = image.success && image.optimizedColors < image.originalColors;
+
             // Format settings
             const settingsHtml = formatSettings(image);
 
@@ -1336,24 +1509,55 @@
                 ? `data-original-url="${originalUrl}" data-optimized-url="${optimizedUrl}" data-original-size="${formatSize(image.originalSize)}" data-optimized-size="${formatSize(image.optimizedSize)}"`
                 : '';
 
+            // Status indicator for non-success states
+            const statusIndicator = image.processing 
+                ? '<span class="file-status processing"><span class="processing-spinner"></span>Processing</span>' 
+                : (!image.success ? '<span class="file-status error">Error</span>' : '');
+
             return `
-                <tr data-id="${image.id}">
+                <tr data-id="${image.id}" class="${image.processing ? 'table-row-processing' : ''}">
                     <td>
-                        <div class="table-preview-container" ${tooltipAttrs}>
+                        <div class="table-preview-container ${image.processing ? 'is-processing' : ''}" ${tooltipAttrs}>
                             <img src="${optimizedUrl}" alt="${image.filename}" class="table-preview">
                         </div>
                     </td>
-                    <td><span class="table-filename" title="${image.filename}">${image.filename}</span></td>
-                    <td class="table-dims ${dimsChanged ? 'resized' : ''}">${dimsText}</td>
-                    <td class="table-size">${formatSize(image.originalSize)}</td>
-                    <td class="table-size ${image.success ? 'reduced' : ''}">${image.success ? formatSize(image.optimizedSize) : '—'}</td>
-                    <td>${image.success ? `<span class="table-savings ${savingsClass}">${savings >= 0 ? '↓' : '↑'} ${Math.abs(savings)}%</span>` : '—'}</td>
+                    <td>
+                        <div class="table-file-info">
+                            <span class="file-name" title="${image.filename}">${image.filename}</span>
+                            ${image.processing ? '' : `<span class="file-format">${image.format}</span>`}${statusIndicator}
+                        </div>
+                    </td>
+                    <td>
+                        <div class="table-details">
+                            <div class="detail-row">
+                                <span class="detail-label">Dim</span>
+                                <span class="detail-value" style="color:var(--text-secondary)">${image.success ? `${image.originalWidth}×${image.originalHeight}` : '—'}</span>
+                                ${dimsChanged ? `<span class="detail-arrow">→</span><span class="detail-value ${dimsChanged ? 'changed' : ''}">${image.newWidth}×${image.newHeight}</span>` : ''}
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Col</span>
+                                <span class="detail-value" style="color:var(--text-secondary)">${image.success ? image.originalColors : '—'}</span>
+                                ${colorsChanged ? `<span class="detail-arrow">→</span><span class="detail-value ${colorsReduced ? 'reduced' : ''}">${image.optimizedColors}</span>` : ''}
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="table-size-info">
+                            <div class="size-row">
+                                <span class="size-original">${formatSize(image.originalSize)}</span>
+                                <span class="size-arrow">→</span>
+                                <span class="size-optimized">${image.success ? formatSize(image.optimizedSize) : '—'}</span>
+                                ${image.success ? `<span class="size-savings ${savingsClass}">${savings >= 0 ? '↓' : '↑'}${Math.abs(savings)}%</span>` : ''}
+                            </div>
+                        </div>
+                    </td>
                     <td class="table-settings">${settingsHtml}</td>
-                    <td><span class="table-status ${statusClass}">${statusText}</span></td>
                     <td>
                         <div class="table-actions">
+                            <button class="table-btn retry-btn" data-id="${image.id}" title="Re-optimize with current settings">↻</button>
+                            ${image.success && image.format === 'png' ? `<button class="table-btn to-jpeg-btn" data-id="${image.id}" title="Convert to JPEG">JPG</button>` : ''}
+                            <button class="table-btn remove" data-id="${image.id}">✕</button>
                             ${image.success ? `<button class="table-btn download-btn" data-id="${image.id}">Download</button>` : ''}
-                            <button class="table-btn remove" data-id="${image.id}">Remove</button>
                         </div>
                     </td>
                 </tr>
@@ -1510,6 +1714,126 @@
             URL.revokeObjectURL(url);
         }
 
+        // Retry image with current settings and add as new row
+        async function retryImage(image) {
+            if (!image.originalFile) return;
+            
+            const newId = imageIdCounter++;
+            const currentOptions = getOptions();
+            
+            // Add placeholder for new result
+            images.push({
+                id: newId,
+                filename: image.filename,
+                originalFile: image.originalFile,
+                originalSize: image.originalFile.size,
+                optimizedSize: 0,
+                optimizedData: null,
+                success: false,
+                error: null,
+                format: 'processing',
+                processing: true,
+                originalWidth: 0,
+                originalHeight: 0,
+                newWidth: 0,
+                newHeight: 0,
+                options: { ...currentOptions },
+                originalPalette: [],
+                optimizedPalette: [],
+                originalColors: 0,
+                optimizedColors: 0
+            });
+            updateGrid();
+            
+            // Process with current settings
+            await nextFrame();
+            const result = await processImage(image.originalFile, newId);
+            
+            // Update the placeholder with result
+            const idx = images.findIndex(img => img.id === newId);
+            if (idx !== -1) {
+                images[idx] = result;
+            }
+            updateGrid();
+        }
+
+        // Convert PNG to JPEG and add as new row
+        async function convertToJpeg(image) {
+            if (!image.originalFile || image.format !== 'png') return;
+            
+            const newId = imageIdCounter++;
+            const currentOptions = getOptions();
+            const newFilename = image.filename.replace(/\.png$/i, '.jpg');
+            
+            // Add placeholder for new result
+            images.push({
+                id: newId,
+                filename: newFilename,
+                originalFile: image.originalFile,
+                originalSize: image.originalFile.size,
+                optimizedSize: 0,
+                optimizedData: null,
+                success: false,
+                error: null,
+                format: 'processing',
+                processing: true,
+                originalWidth: 0,
+                originalHeight: 0,
+                newWidth: 0,
+                newHeight: 0,
+                options: { ...currentOptions },
+                originalPalette: [],
+                optimizedPalette: [],
+                originalColors: 0,
+                optimizedColors: 0
+            });
+            updateGrid();
+            
+            // Convert PNG to JPEG
+            await nextFrame();
+            const arrayBuffer = await image.originalFile.arrayBuffer();
+            const data = new Uint8Array(arrayBuffer);
+            
+            try {
+                const result = convert_png_to_jpeg(data, image.filename, currentOptions);
+                
+                const convertedResult = {
+                    id: newId,
+                    filename: result.filename,
+                    originalFile: image.originalFile,
+                    originalSize: image.originalFile.size,
+                    optimizedSize: result.optimized_size,
+                    optimizedData: result.success ? new Uint8Array(result.data) : null,
+                    success: result.success,
+                    error: result.error,
+                    format: result.format,
+                    originalWidth: result.original_width,
+                    originalHeight: result.original_height,
+                    newWidth: result.new_width,
+                    newHeight: result.new_height,
+                    options: { ...currentOptions },
+                    originalPalette: result.original_palette || [],
+                    optimizedPalette: result.optimized_palette || [],
+                    originalColors: result.original_colors || 0,
+                    optimizedColors: result.optimized_colors || 0
+                };
+                
+                // Update the placeholder with result
+                const idx = images.findIndex(img => img.id === newId);
+                if (idx !== -1) {
+                    images[idx] = convertedResult;
+                }
+            } catch (error) {
+                const idx = images.findIndex(img => img.id === newId);
+                if (idx !== -1) {
+                    images[idx].success = false;
+                    images[idx].error = error.message;
+                    images[idx].processing = false;
+                }
+            }
+            updateGrid();
+        }
+
         // Download all as ZIP
         async function downloadAllAsZip() {
             const successfulImages = images.filter(img => img.success && img.optimizedData);
@@ -1626,6 +1950,12 @@
 
                 if (btn.classList.contains('download-btn') && image) {
                     downloadImage(image);
+                } else if (btn.classList.contains('retry-btn') && image) {
+                    // Re-optimize with current settings and add as new row
+                    retryImage(image);
+                } else if (btn.classList.contains('to-jpeg-btn') && image) {
+                    // Convert PNG to JPEG and add as new row
+                    convertToJpeg(image);
                 } else if (btn.classList.contains('remove')) {
                     images = images.filter(img => img.id !== id);
                     updateGrid();

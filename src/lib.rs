@@ -38,6 +38,10 @@ pub struct OptimizeResult {
     pub original_height: u32,
     pub new_width: u32,
     pub new_height: u32,
+    pub original_palette: Vec<String>,
+    pub optimized_palette: Vec<String>,
+    pub original_colors: usize,
+    pub optimized_colors: usize,
 }
 
 impl Default for OptimizeOptions {
@@ -80,6 +84,61 @@ struct OptimizeOutput {
     new_height: u32,
 }
 
+/// Palette extraction result with colors and count
+struct PaletteInfo {
+    palette: Vec<String>,
+    color_count: usize,
+}
+
+/// Extract dominant colors from an image and return them as hex strings along with total unique color count
+fn extract_palette(rgba: &image::RgbaImage, max_colors: usize) -> PaletteInfo {
+    // Sample pixels and count color occurrences
+    let mut color_counts: HashMap<[u8; 3], u32> = HashMap::new();
+    
+    // Sample every Nth pixel for performance on large images
+    let total_pixels = rgba.width() as usize * rgba.height() as usize;
+    let sample_rate = if total_pixels > 100_000 { 10 } else if total_pixels > 10_000 { 5 } else { 1 };
+    
+    for (i, pixel) in rgba.pixels().enumerate() {
+        if i % sample_rate != 0 {
+            continue;
+        }
+        // Skip fully transparent pixels
+        if pixel[3] < 128 {
+            continue;
+        }
+        // Quantize colors to reduce noise (group similar colors)
+        let r = (pixel[0] / 16) * 16;
+        let g = (pixel[1] / 16) * 16;
+        let b = (pixel[2] / 16) * 16;
+        *color_counts.entry([r, g, b]).or_insert(0) += 1;
+    }
+    
+    // Total unique colors (quantized)
+    let color_count = color_counts.len();
+    
+    // Sort by frequency and take top colors
+    let mut colors: Vec<_> = color_counts.into_iter().collect();
+    colors.sort_by(|a, b| b.1.cmp(&a.1));
+    
+    // Convert to hex strings
+    let palette = colors.iter()
+        .take(max_colors)
+        .map(|([r, g, b], _)| format!("#{:02x}{:02x}{:02x}", r, g, b))
+        .collect();
+    
+    PaletteInfo { palette, color_count }
+}
+
+/// Extract palette from raw image bytes
+fn extract_palette_from_bytes(data: &[u8], format: ImageFormat) -> PaletteInfo {
+    if let Ok(img) = image::load_from_memory_with_format(data, format) {
+        extract_palette(&img.to_rgba8(), 8)
+    } else {
+        PaletteInfo { palette: vec![], color_count: 0 }
+    }
+}
+
 fn optimize_image_internal(data: &[u8], filename: &str, options: &OptimizeOptions) -> OptimizeResult {
     let original_size = data.len();
     let lower_filename = filename.to_lowercase();
@@ -88,19 +147,30 @@ fn optimize_image_internal(data: &[u8], filename: &str, options: &OptimizeOption
     let is_jpeg = lower_filename.ends_with(".jpg") || lower_filename.ends_with(".jpeg");
     
     if is_png {
+        // Extract original palette before optimization
+        let original_info = extract_palette_from_bytes(data, ImageFormat::Png);
+        
         match optimize_png(data, options) {
-            Ok(output) => OptimizeResult {
-                optimized_size: output.data.len(),
-                data: output.data,
-                original_size,
-                format: "png".to_string(),
-                filename: filename.to_string(),
-                success: true,
-                error: None,
-                original_width: output.original_width,
-                original_height: output.original_height,
-                new_width: output.new_width,
-                new_height: output.new_height,
+            Ok(output) => {
+                // Extract optimized palette
+                let optimized_info = extract_palette_from_bytes(&output.data, ImageFormat::Png);
+                OptimizeResult {
+                    optimized_size: output.data.len(),
+                    data: output.data,
+                    original_size,
+                    format: "png".to_string(),
+                    filename: filename.to_string(),
+                    success: true,
+                    error: None,
+                    original_width: output.original_width,
+                    original_height: output.original_height,
+                    new_width: output.new_width,
+                    new_height: output.new_height,
+                    original_palette: original_info.palette,
+                    optimized_palette: optimized_info.palette,
+                    original_colors: original_info.color_count,
+                    optimized_colors: optimized_info.color_count,
+                }
             },
             Err(e) => OptimizeResult {
                 data: vec![],
@@ -114,22 +184,37 @@ fn optimize_image_internal(data: &[u8], filename: &str, options: &OptimizeOption
                 original_height: 0,
                 new_width: 0,
                 new_height: 0,
+                original_palette: vec![],
+                optimized_palette: vec![],
+                original_colors: 0,
+                optimized_colors: 0,
             },
         }
     } else if is_jpeg {
+        // Extract original palette before optimization
+        let original_info = extract_palette_from_bytes(data, ImageFormat::Jpeg);
+        
         match optimize_jpeg(data, options) {
-            Ok(output) => OptimizeResult {
-                optimized_size: output.data.len(),
-                data: output.data,
-                original_size,
-                format: "jpeg".to_string(),
-                filename: filename.to_string(),
-                success: true,
-                error: None,
-                original_width: output.original_width,
-                original_height: output.original_height,
-                new_width: output.new_width,
-                new_height: output.new_height,
+            Ok(output) => {
+                // Extract optimized palette
+                let optimized_info = extract_palette_from_bytes(&output.data, ImageFormat::Jpeg);
+                OptimizeResult {
+                    optimized_size: output.data.len(),
+                    data: output.data,
+                    original_size,
+                    format: "jpeg".to_string(),
+                    filename: filename.to_string(),
+                    success: true,
+                    error: None,
+                    original_width: output.original_width,
+                    original_height: output.original_height,
+                    new_width: output.new_width,
+                    new_height: output.new_height,
+                    original_palette: original_info.palette,
+                    optimized_palette: optimized_info.palette,
+                    original_colors: original_info.color_count,
+                    optimized_colors: optimized_info.color_count,
+                }
             },
             Err(e) => OptimizeResult {
                 data: vec![],
@@ -143,6 +228,10 @@ fn optimize_image_internal(data: &[u8], filename: &str, options: &OptimizeOption
                 original_height: 0,
                 new_width: 0,
                 new_height: 0,
+                original_palette: vec![],
+                optimized_palette: vec![],
+                original_colors: 0,
+                optimized_colors: 0,
             },
         }
     } else {
@@ -158,6 +247,10 @@ fn optimize_image_internal(data: &[u8], filename: &str, options: &OptimizeOption
             original_height: 0,
             new_width: 0,
             new_height: 0,
+            original_palette: vec![],
+            optimized_palette: vec![],
+            original_colors: 0,
+            optimized_colors: 0,
         }
     }
 }
@@ -639,4 +732,110 @@ pub fn get_default_options() -> JsValue {
 pub fn get_supported_formats() -> JsValue {
     let formats = vec!["jpeg", "jpg", "png"];
     serde_wasm_bindgen::to_value(&formats).unwrap()
+}
+
+/// Convert PNG to JPEG
+#[wasm_bindgen]
+pub fn convert_png_to_jpeg(
+    data: &[u8],
+    filename: &str,
+    options_js: JsValue,
+) -> Result<JsValue, JsValue> {
+    let options: OptimizeOptions = serde_wasm_bindgen::from_value(options_js)
+        .unwrap_or_else(|_| OptimizeOptions::default());
+
+    let result = convert_png_to_jpeg_internal(data, filename, &options);
+    
+    serde_wasm_bindgen::to_value(&result)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+fn convert_png_to_jpeg_internal(data: &[u8], filename: &str, options: &OptimizeOptions) -> OptimizeResult {
+    let original_size = data.len();
+    
+    // Load PNG
+    let img = match image::load_from_memory_with_format(data, ImageFormat::Png) {
+        Ok(img) => img,
+        Err(e) => {
+            return OptimizeResult {
+                data: vec![],
+                original_size,
+                optimized_size: 0,
+                format: "jpeg".to_string(),
+                filename: filename.to_string(),
+                success: false,
+                error: Some(format!("Failed to decode PNG: {}", e)),
+                original_width: 0,
+                original_height: 0,
+                new_width: 0,
+                new_height: 0,
+                original_palette: vec![],
+                optimized_palette: vec![],
+                original_colors: 0,
+                optimized_colors: 0,
+            };
+        }
+    };
+    
+    // Extract original palette info
+    let original_info = extract_palette(&img.to_rgba8(), 8);
+    
+    // Resize if needed
+    let resize_result = resize_image_if_needed(img, options);
+    let original_width = resize_result.original_width;
+    let original_height = resize_result.original_height;
+    let img = resize_result.img;
+    
+    // Convert to RGB (JPEG doesn't support alpha)
+    let rgb_image = img.to_rgb8();
+    let (width, height) = rgb_image.dimensions();
+    
+    // Encode as JPEG
+    match encode_jpeg(&rgb_image, width, height, options.quality) {
+        Ok(jpeg_data) => {
+            // Extract optimized palette info
+            let optimized_info = extract_palette_from_bytes(&jpeg_data, ImageFormat::Jpeg);
+            
+            // Generate new filename with .jpg extension
+            let new_filename = {
+                let name = filename.trim_end_matches(".png").trim_end_matches(".PNG");
+                format!("{}.jpg", name)
+            };
+            
+            OptimizeResult {
+                optimized_size: jpeg_data.len(),
+                data: jpeg_data,
+                original_size,
+                format: "jpeg".to_string(),
+                filename: new_filename,
+                success: true,
+                error: None,
+                original_width,
+                original_height,
+                new_width: width,
+                new_height: height,
+                original_palette: original_info.palette,
+                optimized_palette: optimized_info.palette,
+                original_colors: original_info.color_count,
+                optimized_colors: optimized_info.color_count,
+            }
+        },
+        Err(e) => OptimizeResult {
+            data: vec![],
+            original_size,
+            optimized_size: 0,
+            format: "jpeg".to_string(),
+            filename: filename.to_string(),
+            success: false,
+            error: Some(e),
+            original_width: 0,
+            original_height: 0,
+            new_width: 0,
+            new_height: 0,
+            original_palette: vec![],
+            optimized_palette: vec![],
+            original_colors: 0,
+            optimized_colors: 0,
+        },
+    }
 }

@@ -215,9 +215,19 @@ fn optimize_png(data: &[u8], options: &OptimizeOptions) -> Result<OptimizeOutput
         0
     };
     
+    // Auto-select compression effort based on color count when in auto mode
+    let effective_options = if options.png_auto {
+        let auto_compression = auto_select_compression_effort(unique_colors, options.png_compression);
+        let mut opts = options.clone();
+        opts.png_compression = auto_compression;
+        opts
+    } else {
+        options.clone()
+    };
+    
     // Strategy 1: Try indexed PNG (palette mode) - lossless if ≤256 colors
     let target_colors = (options.png_colors as usize).clamp(2, 256);
-    if let Ok(indexed) = try_indexed_png(&rgba, width, height, 256, options) {
+    if let Ok(indexed) = try_indexed_png(&rgba, width, height, 256, &effective_options) {
         outputs.push(indexed);
     }
     
@@ -228,21 +238,21 @@ fn optimize_png(data: &[u8], options: &OptimizeOptions) -> Result<OptimizeOutput
             // Try multiple quantization levels and pick the best
             let color_levels = auto_select_color_levels(unique_colors, options.png_auto_level);
             for colors in color_levels {
-                if let Ok(quantized) = try_quantized_png(&rgba, width, height, colors, options) {
+                if let Ok(quantized) = try_quantized_png(&rgba, width, height, colors, &effective_options) {
                     outputs.push(quantized);
                 }
             }
         }
     } else if options.png_quantize {
         // Manual mode: use user-specified color count
-        if let Ok(quantized) = try_quantized_png(&rgba, width, height, target_colors, options) {
+        if let Ok(quantized) = try_quantized_png(&rgba, width, height, target_colors, &effective_options) {
             outputs.push(quantized);
         }
     }
     
     // Strategy 3: Optimal direct encoding (grayscale/RGB/RGBA)
     let (color_type, image_data) = determine_optimal_color_type(&rgba);
-    if let Ok(direct) = encode_png(width, height, color_type, BitDepth::Eight, &image_data, options) {
+    if let Ok(direct) = encode_png(width, height, color_type, BitDepth::Eight, &image_data, &effective_options) {
         outputs.push(direct);
     }
     
@@ -299,6 +309,33 @@ fn auto_select_color_levels(unique_colors: usize, auto_level: u8) -> Vec<usize> 
         10 => vec![256, 192, 128, 64, 32, 24, 16],   // Maximum compression
         _ => vec![256, 192, 128, 96],                // Default fallback
     }
+}
+
+/// Auto-select compression effort based on the number of unique colors in the image.
+/// Images with fewer colors are simpler and compress well with less effort.
+/// Images with many colors benefit from higher compression effort.
+fn auto_select_compression_effort(unique_colors: usize, base_level: u8) -> u8 {
+    // Calculate a color-based modifier
+    // - Very few colors (≤16): reduce effort by 2
+    // - Few colors (≤64): reduce effort by 1  
+    // - Medium colors (≤256): keep base effort
+    // - Many colors (≤1000): increase effort by 1
+    // - Very many colors (>1000): increase effort by 2
+    let color_modifier: i8 = if unique_colors <= 16 {
+        -2  // Very simple images - low effort is fine
+    } else if unique_colors <= 64 {
+        -1  // Simple images - slightly lower effort
+    } else if unique_colors <= 256 {
+        0   // Medium complexity - base effort
+    } else if unique_colors <= 1000 {
+        1   // Complex images - higher effort helps
+    } else {
+        2   // Very complex images - maximum effort beneficial
+    };
+    
+    // Apply modifier while keeping in valid range (0-9 for compression)
+    let adjusted = (base_level as i8 + color_modifier).clamp(0, 9);
+    adjusted as u8
 }
 
 /// Try to create an indexed PNG if the image has ≤256 unique colors (lossless)

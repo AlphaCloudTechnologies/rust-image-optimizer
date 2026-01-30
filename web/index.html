@@ -507,12 +507,147 @@
             background: var(--bg-tertiary);
         }
 
+        .table-preview-container {
+            position: relative;
+            width: 48px;
+            height: 36px;
+            cursor: pointer;
+        }
+
+        .table-preview-container[data-original-url] {
+            cursor: zoom-in;
+        }
+
         .table-preview {
             width: 48px;
             height: 36px;
             border-radius: 4px;
             object-fit: cover;
             background: var(--bg-tertiary);
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .table-preview-container[data-original-url]:hover .table-preview {
+            box-shadow: 0 0 0 2px var(--accent);
+            transform: scale(1.05);
+        }
+
+        /* Global tooltip that appears outside table */
+        #previewTooltip {
+            position: fixed;
+            left: 50% !important;
+            top: 50% !important;
+            transform: translate(-50%, -50%);
+            width: min(90vw, 1000px);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.05);
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            pointer-events: none;
+        }
+
+        #previewTooltip.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .preview-tooltip-images {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .preview-tooltip-item {
+            text-align: center;
+            flex: 1;
+            max-width: calc(50% - 10px);
+        }
+
+        .preview-tooltip-item img {
+            width: 100%;
+            height: auto;
+            max-height: 70vh;
+            object-fit: contain;
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            display: block;
+            border: 1px solid var(--border);
+        }
+
+        .preview-tooltip-label {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-top: 12px;
+            font-weight: 500;
+        }
+
+        .preview-tooltip-label.original {
+            color: var(--text-secondary);
+        }
+
+        .preview-tooltip-label.optimized {
+            color: var(--success);
+        }
+
+        .preview-tooltip-hint {
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .preview-tooltip-close {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: var(--bg-tertiary);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s ease;
+        }
+
+        .preview-tooltip-close:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .preview-tooltip-close svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            stroke-width: 2;
+        }
+
+        /* Backdrop when tooltip is visible */
+        #previewBackdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 9998;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+        }
+
+        #previewBackdrop.visible {
+            opacity: 1;
+            visibility: visible;
         }
 
         .table-filename {
@@ -542,6 +677,28 @@
 
         .table-dims.resized {
             color: var(--accent);
+        }
+
+        .table-settings {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .table-settings .setting-line {
+            display: block;
+            white-space: nowrap;
+        }
+
+        .table-settings .setting-label {
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .table-settings .setting-value {
+            color: var(--text-primary);
+            font-weight: 500;
         }
 
         .table-savings {
@@ -845,6 +1002,29 @@
         <p class="loading-text">Initializing WASM optimizer...</p>
     </div>
 
+    <!-- Backdrop for preview -->
+    <div id="previewBackdrop"></div>
+
+    <!-- Global preview tooltip -->
+    <div id="previewTooltip">
+        <button class="preview-tooltip-close" id="tooltipClose">
+            <svg viewBox="0 0 24 24" fill="none">
+                <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+        </button>
+        <div class="preview-tooltip-images">
+            <div class="preview-tooltip-item">
+                <img id="tooltipOriginal" src="" alt="Original">
+                <div class="preview-tooltip-label original" id="tooltipOriginalLabel">Original</div>
+            </div>
+            <div class="preview-tooltip-item">
+                <img id="tooltipOptimized" src="" alt="Optimized">
+                <div class="preview-tooltip-label optimized" id="tooltipOptimizedLabel">Optimized</div>
+            </div>
+        </div>
+        <div class="preview-tooltip-hint">Click anywhere outside or press Esc to close</div>
+    </div>
+
     <div class="container">
         <main>
             <div class="upload-zone" id="uploadZone">
@@ -971,6 +1151,7 @@
                             <th>Original</th>
                             <th>Optimized</th>
                             <th>Savings</th>
+                            <th>Settings</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -1075,7 +1256,8 @@
                     originalWidth: result.original_width,
                     originalHeight: result.original_height,
                     newWidth: result.new_width,
-                    newHeight: result.new_height
+                    newHeight: result.new_height,
+                    options: { ...options }
                 };
             } catch (error) {
                 return {
@@ -1091,8 +1273,33 @@
                     originalWidth: 0,
                     originalHeight: 0,
                     newWidth: 0,
-                    newHeight: 0
+                    newHeight: 0,
+                    options: { ...options }
                 };
+            }
+        }
+
+        // Format settings display
+        function formatSettings(image) {
+            if (!image.options) return '—';
+            
+            const opts = image.options;
+            // Check format or infer from filename
+            const filename = image.filename.toLowerCase();
+            const isPng = image.format === 'png' || filename.endsWith('.png');
+            
+            if (isPng) {
+                let lines = [];
+                lines.push(`<span class="setting-line"><span class="setting-label">Level:</span> <span class="setting-value">${opts.png_compression}</span></span>`);
+                if (opts.png_auto) {
+                    lines.push(`<span class="setting-line"><span class="setting-label">Auto:</span> <span class="setting-value">On</span> <span class="setting-label">Effort:</span> <span class="setting-value">${opts.png_auto_level}</span></span>`);
+                } else if (opts.png_quantize) {
+                    lines.push(`<span class="setting-line"><span class="setting-label">Colors:</span> <span class="setting-value">${opts.png_colors}</span></span>`);
+                }
+                return lines.join('');
+            } else {
+                // JPEG
+                return `<span class="setting-line"><span class="setting-label">Quality:</span> <span class="setting-value">${opts.quality}</span></span>`;
             }
         }
 
@@ -1103,15 +1310,14 @@
             const statusClass = image.success ? 'success' : (image.processing ? 'processing' : 'error');
             const statusText = image.success ? 'Done' : (image.processing ? '...' : 'Error');
 
-            // Create preview URL
-            let previewUrl = '';
+            // Create preview URLs
+            const originalUrl = URL.createObjectURL(image.originalFile);
+            let optimizedUrl = originalUrl;
             if (image.success && image.optimizedData) {
                 const blob = new Blob([image.optimizedData], { 
                     type: image.format === 'png' ? 'image/png' : 'image/jpeg' 
                 });
-                previewUrl = URL.createObjectURL(blob);
-            } else {
-                previewUrl = URL.createObjectURL(image.originalFile);
+                optimizedUrl = URL.createObjectURL(blob);
             }
 
             // Format dimensions
@@ -1122,14 +1328,27 @@
                     : `${image.newWidth}×${image.newHeight}`)
                 : '—';
 
+            // Format settings
+            const settingsHtml = formatSettings(image);
+
+            // Data attributes for tooltip (only if successfully optimized)
+            const tooltipAttrs = image.success 
+                ? `data-original-url="${originalUrl}" data-optimized-url="${optimizedUrl}" data-original-size="${formatSize(image.originalSize)}" data-optimized-size="${formatSize(image.optimizedSize)}"`
+                : '';
+
             return `
                 <tr data-id="${image.id}">
-                    <td><img src="${previewUrl}" alt="${image.filename}" class="table-preview"></td>
+                    <td>
+                        <div class="table-preview-container" ${tooltipAttrs}>
+                            <img src="${optimizedUrl}" alt="${image.filename}" class="table-preview">
+                        </div>
+                    </td>
                     <td><span class="table-filename" title="${image.filename}">${image.filename}</span></td>
                     <td class="table-dims ${dimsChanged ? 'resized' : ''}">${dimsText}</td>
                     <td class="table-size">${formatSize(image.originalSize)}</td>
                     <td class="table-size ${image.success ? 'reduced' : ''}">${image.success ? formatSize(image.optimizedSize) : '—'}</td>
                     <td>${image.success ? `<span class="table-savings ${savingsClass}">${savings >= 0 ? '↓' : '↑'} ${Math.abs(savings)}%</span>` : '—'}</td>
+                    <td class="table-settings">${settingsHtml}</td>
                     <td><span class="table-status ${statusClass}">${statusText}</span></td>
                     <td>
                         <div class="table-actions">
@@ -1218,6 +1437,7 @@
             showProgress(validFiles.length);
 
             // Add placeholders
+            const currentOptions = getOptions();
             for (const file of validFiles) {
                 const id = imageIdCounter++;
                 images.push({
@@ -1234,7 +1454,8 @@
                     originalWidth: 0,
                     originalHeight: 0,
                     newWidth: 0,
-                    newHeight: 0
+                    newHeight: 0,
+                    options: { ...currentOptions }
                 });
             }
             updateGrid();
@@ -1419,6 +1640,61 @@
 
             // Download all
             document.getElementById('downloadAllBtn').addEventListener('click', downloadAllAsZip);
+
+            // Preview tooltip handling
+            const tooltip = document.getElementById('previewTooltip');
+            const backdrop = document.getElementById('previewBackdrop');
+            const tooltipClose = document.getElementById('tooltipClose');
+            const tooltipOriginal = document.getElementById('tooltipOriginal');
+            const tooltipOptimized = document.getElementById('tooltipOptimized');
+            const tooltipOriginalLabel = document.getElementById('tooltipOriginalLabel');
+            const tooltipOptimizedLabel = document.getElementById('tooltipOptimizedLabel');
+
+            function showTooltip(container) {
+                const originalUrl = container.dataset.originalUrl;
+                const optimizedUrl = container.dataset.optimizedUrl;
+                const originalSize = container.dataset.originalSize;
+                const optimizedSize = container.dataset.optimizedSize;
+
+                if (!originalUrl) return;
+
+                tooltipOriginal.src = originalUrl;
+                tooltipOptimized.src = optimizedUrl;
+                tooltipOriginalLabel.textContent = `Original (${originalSize})`;
+                tooltipOptimizedLabel.textContent = `Optimized (${optimizedSize})`;
+
+                backdrop.classList.add('visible');
+                tooltip.classList.add('visible');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function hideTooltip() {
+                backdrop.classList.remove('visible');
+                tooltip.classList.remove('visible');
+                document.body.style.overflow = '';
+            }
+
+            // Click on thumbnail to open comparison
+            document.getElementById('imageGrid').addEventListener('click', (e) => {
+                const container = e.target.closest('.table-preview-container');
+                if (container && container.dataset.originalUrl) {
+                    e.stopPropagation();
+                    showTooltip(container);
+                }
+            });
+
+            // Click backdrop to close
+            backdrop.addEventListener('click', hideTooltip);
+
+            // Click close button to close
+            tooltipClose.addEventListener('click', hideTooltip);
+
+            // Press Escape to close
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && tooltip.classList.contains('visible')) {
+                    hideTooltip();
+                }
+            });
         });
     </script>
 </body>

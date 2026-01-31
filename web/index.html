@@ -1350,6 +1350,7 @@
         let imageIdCounter = 0;
         let worker = null;
         let pendingCallbacks = new Map(); // Track pending worker callbacks
+        let timerInterval = null; // For updating running times
 
         // Initialize Web Worker
         async function initWasm() {
@@ -1413,6 +1414,43 @@
             if (bytes < 1024) return bytes + ' B';
             if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
             return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        // Format time in milliseconds
+        function formatTime(ms) {
+            if (ms < 1000) return Math.round(ms) + 'ms';
+            return (ms / 1000).toFixed(2) + 's';
+        }
+
+        // Update running times for processing images
+        function updateRunningTimes() {
+            const processingImages = images.filter(img => img.processing && img.startTime);
+            if (processingImages.length === 0) {
+                stopTimer();
+                return;
+            }
+            
+            processingImages.forEach(img => {
+                const timeEl = document.querySelector(`.time-value[data-id="${img.id}"]`);
+                if (timeEl) {
+                    timeEl.textContent = formatTime(performance.now() - img.startTime);
+                }
+            });
+        }
+
+        // Start the timer interval
+        function startTimer() {
+            if (!timerInterval) {
+                timerInterval = setInterval(updateRunningTimes, 100);
+            }
+        }
+
+        // Stop the timer interval
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
         }
 
         // Calculate savings percentage
@@ -1576,6 +1614,10 @@
                                 <span class="detail-value" style="color:var(--text-secondary)">${image.success ? image.originalColors : '—'}</span>
                                 ${colorsChanged ? `<span class="detail-arrow">→</span><span class="detail-value ${colorsReduced ? 'reduced' : ''}">${image.optimizedColors}</span>` : ''}
                             </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Time</span>
+                                <span class="detail-value time-value" data-id="${image.id}" style="color:var(--text-secondary)">${image.processing && image.startTime ? formatTime(performance.now() - image.startTime) : (image.success && image.timeTaken ? formatTime(image.timeTaken) : '—')}</span>
+                            </div>
                         </div>
                     </td>
                     <td>
@@ -1696,10 +1738,13 @@
                     originalHeight: 0,
                     newWidth: 0,
                     newHeight: 0,
-                    options: { ...currentOptions }
+                    options: { ...currentOptions },
+                    timeTaken: 0,
+                    startTime: performance.now()
                 });
             }
             updateGrid();
+            startTimer();
 
             // Give the browser a frame to render the progress bar before heavy processing
             await nextFrame();
@@ -1714,7 +1759,10 @@
                 if (imageIndex !== -1) {
                     // Yield before each file to keep UI responsive
                     await nextFrame();
+                    const startTime = performance.now();
                     const result = await processImage(file, images[imageIndex].id);
+                    const endTime = performance.now();
+                    result.timeTaken = endTime - startTime;
                     images[imageIndex] = result;
                     completed++;
                     updateProgress(completed, total, file.name);
@@ -1767,6 +1815,7 @@
             const currentOptions = getOptions();
             
             // Add placeholder for new result
+            const startTime = performance.now();
             images.push({
                 id: newId,
                 filename: image.filename,
@@ -1786,13 +1835,18 @@
                 originalPalette: [],
                 optimizedPalette: [],
                 originalColors: 0,
-                optimizedColors: 0
+                optimizedColors: 0,
+                timeTaken: 0,
+                startTime: startTime
             });
             updateGrid();
+            startTimer();
             
             // Process with current settings
             await nextFrame();
             const result = await processImage(image.originalFile, newId);
+            const endTime = performance.now();
+            result.timeTaken = endTime - startTime;
             
             // Update the placeholder with result
             const idx = images.findIndex(img => img.id === newId);
@@ -1811,6 +1865,7 @@
             const newFilename = image.filename.replace(/\.png$/i, '.jpg');
             
             // Add placeholder for new result
+            const startTime = performance.now();
             images.push({
                 id: newId,
                 filename: newFilename,
@@ -1830,9 +1885,12 @@
                 originalPalette: [],
                 optimizedPalette: [],
                 originalColors: 0,
-                optimizedColors: 0
+                optimizedColors: 0,
+                timeTaken: 0,
+                startTime: startTime
             });
             updateGrid();
+            startTimer();
             
             // Convert PNG to JPEG via worker
             await nextFrame();
@@ -1850,6 +1908,8 @@
                     options: currentOptions
                 });
             });
+            const endTime = performance.now();
+            const timeTaken = endTime - startTime;
             
             // Update the placeholder with result
             const idx = images.findIndex(img => img.id === newId);
@@ -1873,7 +1933,8 @@
                         originalPalette: result.original_palette || [],
                         optimizedPalette: result.optimized_palette || [],
                         originalColors: result.original_colors || 0,
-                        optimizedColors: result.optimized_colors || 0
+                        optimizedColors: result.optimized_colors || 0,
+                        timeTaken: timeTaken
                     };
                 } else {
                     images[idx].success = false;

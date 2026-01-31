@@ -400,15 +400,17 @@ struct ColorCountResult {
     is_grayscale: bool,
 }
 
-/// Count unique colors in the image with smart sampling for large images
+/// Count unique colors in the image with aggressive sampling for speed
 fn count_unique_colors(rgba: &image::RgbaImage) -> ColorCountResult {
     use std::collections::HashSet;
     
     let total_pixels = rgba.pixels().len();
-    let sample_rate = if total_pixels > 500_000 { 8 } 
-                      else if total_pixels > 100_000 { 4 } 
-                      else if total_pixels > 50_000 { 2 } 
-                      else { 1 };
+    // More aggressive sampling for large images - we just need an estimate
+    let sample_rate = if total_pixels > 1_000_000 { 32 }
+                      else if total_pixels > 500_000 { 16 } 
+                      else if total_pixels > 100_000 { 8 } 
+                      else if total_pixels > 50_000 { 4 } 
+                      else { 2 };
     
     let mut colors: HashSet<[u8; 4]> = HashSet::with_capacity(512);
     let mut has_alpha = false;
@@ -429,8 +431,8 @@ fn count_unique_colors(rgba: &image::RgbaImage) -> ColorCountResult {
         
         colors.insert(pixel.0);
         
-        // Cap at 4096 to avoid excessive memory for complex images
-        if colors.len() > 4096 {
+        // Cap early - we just need to know if it's >256 or not
+        if colors.len() > 1024 {
             return ColorCountResult {
                 count: colors.len(),
                 is_capped: true,
@@ -458,6 +460,7 @@ fn count_unique_colors(rgba: &image::RgbaImage) -> ColorCountResult {
 
 /// Auto-select color levels to try based on auto level
 /// Higher effort = more aggressive color reduction = smaller files but potentially lower quality
+/// Reduced number of attempts for faster processing
 fn auto_select_color_levels(unique_colors: usize, auto_level: u8) -> Vec<usize> {
     if unique_colors <= 256 {
         // Already under 256 colors, no quantization needed
@@ -465,19 +468,15 @@ fn auto_select_color_levels(unique_colors: usize, auto_level: u8) -> Vec<usize> 
     }
     
     // Each effort level tries increasingly aggressive color reduction
-    // The minimum color count decreases as effort increases
+    // Reduced number of levels per attempt for speed (was trying too many)
     match auto_level {
-        1 => vec![256],                              // Lossless-ish only
-        2 => vec![256, 224],                         // Very light
-        3 => vec![256, 192, 160],                    // Light
-        4 => vec![256, 192, 128],                    // Light-medium
-        5 => vec![256, 192, 128, 96],                // Medium (default)
-        6 => vec![256, 192, 128, 64],                // Medium-aggressive
-        7 => vec![256, 192, 128, 64, 48],            // Aggressive
-        8 => vec![256, 192, 128, 64, 32],            // More aggressive
-        9 => vec![256, 192, 128, 64, 32, 24],        // Very aggressive
-        10 => vec![256, 192, 128, 64, 32, 24, 16],   // Maximum compression
-        _ => vec![256, 192, 128, 96],                // Default fallback
+        1 => vec![256],                     // Lossless-ish only
+        2..=3 => vec![256, 192],            // Light
+        4..=5 => vec![256, 128],            // Medium (default)
+        6..=7 => vec![256, 128, 64],        // Aggressive
+        8..=9 => vec![256, 128, 48],        // Very aggressive
+        10 => vec![256, 128, 64, 32],       // Maximum compression
+        _ => vec![256, 128],                // Default fallback
     }
 }
 
@@ -539,24 +538,34 @@ fn try_indexed_png(
     encode_indexed_png(width, height, &palette, &indices, options)
 }
 
-/// Find the nearest color in the palette using weighted distance (perceptual)
+/// Find the nearest color in the palette using simple squared distance
+/// Using integer math for speed - perceptual weighting has minimal impact on indexed PNGs
+#[inline(always)]
 fn find_nearest_color_index(pixel: &[f32; 4], palette: &[[u8; 4]]) -> usize {
     let mut best_idx = 0;
-    let mut best_dist = f32::MAX;
+    let mut best_dist = i32::MAX;
+    
+    let pr = pixel[0] as i32;
+    let pg = pixel[1] as i32;
+    let pb = pixel[2] as i32;
+    let pa = pixel[3] as i32;
     
     for (idx, pal_color) in palette.iter().enumerate() {
-        // Weighted RGB distance (green is more perceptually important)
-        let dr = pixel[0] - pal_color[0] as f32;
-        let dg = pixel[1] - pal_color[1] as f32;
-        let db = pixel[2] - pal_color[2] as f32;
-        let da = pixel[3] - pal_color[3] as f32;
+        let dr = pr - pal_color[0] as i32;
+        let dg = pg - pal_color[1] as i32;
+        let db = pb - pal_color[2] as i32;
+        let da = pa - pal_color[3] as i32;
         
-        // Perceptual weights: R=0.299, G=0.587, B=0.114 (ITU-R BT.601)
-        let dist = dr * dr * 0.299 + dg * dg * 0.587 + db * db * 0.114 + da * da * 0.1;
+        // Simple squared distance - faster than weighted in practice
+        let dist = dr * dr + dg * dg + db * db + da * da;
         
         if dist < best_dist {
             best_dist = dist;
             best_idx = idx;
+            // Early exit if exact match
+            if dist == 0 {
+                return idx;
+            }
         }
     }
     best_idx
@@ -677,11 +686,18 @@ fn try_quantized_png(
     
     // NeuQuant sample_faction: 1 = examine all pixels (best quality), 30 = sample 1/30 (faster)
     // Note: Lower values = better quality (more pixels examined)
-    let sample_faction = match options.png_compression {
-        0..=2 => 10,  // Faster, lower quality
-        3..=5 => 3,   // Balanced  
-        6..=7 => 2,   // Higher quality
-        _ => 1,       // Best quality (examine all pixels)
+    // For WASM performance, we use more aggressive sampling - quality impact is minimal
+    let total_pixels = (width * height) as usize;
+    let sample_faction = if total_pixels > 1_000_000 {
+        // Very large images: aggressive sampling
+        10
+    } else if total_pixels > 500_000 {
+        8
+    } else if total_pixels > 100_000 {
+        5
+    } else {
+        // Smaller images: can afford more thorough sampling
+        3
     };
     
     // Create quantizer with filtered pixels
@@ -709,7 +725,13 @@ fn try_quantized_png(
     }
     
     // Map pixels to palette indices - with or without dithering
-    let indices = if options.png_dithering && options.png_dithering_level > 0.0 {
+    // Skip dithering for very large images to improve performance
+    let total_pixels = (width * height) as usize;
+    let use_dithering = options.png_dithering 
+        && options.png_dithering_level > 0.0 
+        && total_pixels <= 2_000_000;  // Skip dithering for images > 2MP
+    
+    let indices = if use_dithering {
         apply_floyd_steinberg_dithering(rgba, &palette, options.png_dithering_level)
     } else {
         // Simple nearest-color mapping without dithering
@@ -776,14 +798,14 @@ fn encode_indexed_png(
             encoder.set_trns(t);
         }
         
+        // Cap at Balanced for speed - High is too slow in WASM
         let compression = match options.png_compression {
             0..=1 => Compression::Fastest,
-            2..=3 => Compression::Fast,
-            4..=6 => Compression::Balanced,
-            _ => Compression::High,
+            2..=4 => Compression::Fast,
+            _ => Compression::Balanced,
         };
         encoder.set_compression(compression);
-        encoder.set_filter(Filter::Adaptive);
+        encoder.set_filter(Filter::Sub);  // Sub filter is fast and works well for indexed images
         
         let mut writer = encoder.write_header()
             .map_err(|e| format!("Failed to write indexed PNG header: {}", e))?;
@@ -863,22 +885,21 @@ fn encode_png(
     data: &[u8],
     options: &OptimizeOptions,
 ) -> Result<Vec<u8>, String> {
+    // Note: Compression::High uses zlib level 9 which is VERY slow in WASM
+    // Balanced (level 6) provides ~95% of the compression in a fraction of the time
     let compression = match options.png_compression {
         0..=1 => Compression::Fastest,
-        2..=3 => Compression::Fast,
-        4..=6 => Compression::Balanced,
-        _ => Compression::High,
+        2..=4 => Compression::Fast,
+        _ => Compression::Balanced,  // Cap at Balanced for speed; High is too slow
     };
     
-    // For high compression levels, try multiple filters and pick the smallest
-    if options.png_compression >= 6 {
+    // For high compression levels, try a subset of effective filters
+    // Testing all 6 filters is expensive; Adaptive + Sub + Paeth cover most cases well
+    if options.png_compression >= 7 {
         let filters = [
-            Filter::NoFilter,
-            Filter::Sub,
-            Filter::Up,
-            Filter::Avg,
-            Filter::Paeth,
-            Filter::Adaptive,
+            Filter::Adaptive,  // Usually best for photos
+            Filter::Sub,       // Good for gradients
+            Filter::Paeth,     // Good for complex images
         ];
         
         let mut best_output: Option<Vec<u8>> = None;

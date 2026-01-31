@@ -1220,6 +1220,24 @@
                             <label>Quality <span class="value-display" id="jpegQualityValue">85</span></label>
                             <input type="range" id="jpegQuality" min="1" max="100" value="85">
                         </div>
+
+                        <div class="options-subsection">
+                            <div class="options-subsection-header">
+                                <div class="option-group toggle-group">
+                                    <div class="toggle active" id="jpegAuto"></div>
+                                    <label>Auto</label>
+                                </div>
+                            </div>
+                            <p class="options-subsection-desc">
+                                Finds optimal quality to maximize compression while respecting quality setting as upper bound.
+                            </p>
+                            <div class="options-subsection-content">
+                                <div id="jpegAutoLevelGroup" class="option-group slider-group">
+                                    <label>Effort <span class="value-display" id="jpegAutoLevelValue">5</span></label>
+                                    <input type="range" id="jpegAutoLevel" min="1" max="10" value="5">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1244,8 +1262,8 @@
                             </p>
                             <div class="options-subsection-content">
                                 <div id="pngAutoLevelGroup" class="option-group slider-group">
-                                    <label>Effort <span class="value-display" id="pngAutoLevelValue">5</span></label>
-                                    <input type="range" id="pngAutoLevel" min="1" max="10" value="5">
+                                    <label>Effort <span class="value-display" id="pngAutoLevelValue">6</span></label>
+                                    <input type="range" id="pngAutoLevel" min="1" max="10" value="6">
                                 </div>
                                 <div id="manualPngOptions" class="option-group slider-group" style="opacity: 0.4; pointer-events: none;">
                                     <label>Colors <span class="value-display" id="pngColorsValue">256</span></label>
@@ -1382,8 +1400,10 @@
                 strip_metadata: document.getElementById('stripMetadata').classList.contains('active'),
                 png_auto: document.getElementById('pngAuto').classList.contains('active'),
                 png_auto_level: parseInt(document.getElementById('pngAutoLevel').value),
-                png_quantize: false,
+                png_quantize: !document.getElementById('pngAuto').classList.contains('active'),
                 png_colors: parseInt(document.getElementById('pngColors').value),
+                jpeg_auto: document.getElementById('jpegAuto').classList.contains('active'),
+                jpeg_auto_level: parseInt(document.getElementById('jpegAutoLevel').value),
                 resize_enabled: document.getElementById('resizeEnabled').classList.contains('active'),
                 max_width: parseInt(document.getElementById('maxWidth').value) || 1200,
                 max_height: parseInt(document.getElementById('maxHeight').value) || 1200
@@ -1870,6 +1890,10 @@
             const uploadZone = document.getElementById('uploadZone');
             const fileInput = document.getElementById('fileInput');
             const jpegQuality = document.getElementById('jpegQuality');
+            const jpegAuto = document.getElementById('jpegAuto');
+            const jpegAutoLevelGroup = document.getElementById('jpegAutoLevelGroup');
+            const jpegAutoLevel = document.getElementById('jpegAutoLevel');
+            const jpegAutoLevelValue = document.getElementById('jpegAutoLevelValue');
             const pngCompression = document.getElementById('pngCompression');
             const pngColors = document.getElementById('pngColors');
             const pngAuto = document.getElementById('pngAuto');
@@ -1931,6 +1955,19 @@
             // PNG Auto Level slider
             pngAutoLevel.addEventListener('input', (e) => {
                 pngAutoLevelValue.textContent = e.target.value;
+            });
+
+            // JPEG Auto toggle
+            jpegAuto.addEventListener('click', () => {
+                jpegAuto.classList.toggle('active');
+                const isAuto = jpegAuto.classList.contains('active');
+                jpegAutoLevelGroup.style.opacity = isAuto ? '1' : '0.4';
+                jpegAutoLevelGroup.style.pointerEvents = isAuto ? 'auto' : 'none';
+            });
+
+            // JPEG Auto Level slider
+            jpegAutoLevel.addEventListener('input', (e) => {
+                jpegAutoLevelValue.textContent = e.target.value;
             });
 
             resizeEnabled.addEventListener('click', () => {

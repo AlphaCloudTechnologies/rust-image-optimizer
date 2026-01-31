@@ -6,12 +6,39 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
+// Debug logging macros for browser console
+macro_rules! console_log {
+    ($($arg:tt)*) => {
+        web_sys::console::log_1(&format!($($arg)*).into());
+    };
+}
+
+macro_rules! console_warn {
+    ($($arg:tt)*) => {
+        web_sys::console::warn_1(&format!($($arg)*).into());
+    };
+}
+
+macro_rules! console_debug {
+    ($($arg:tt)*) => {
+        web_sys::console::debug_1(&format!($($arg)*).into());
+    };
+}
+
+macro_rules! console_info {
+    ($($arg:tt)*) => {
+        web_sys::console::info_1(&format!($($arg)*).into());
+    };
+}
+
 #[wasm_bindgen(start)]
 pub fn init() {
     console_error_panic_hook::set_once();
+    console_log!("🦀 Image Optimizer WASM initialized");
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct OptimizeOptions {
     pub quality: u8,             // 1-100 for JPEG
     pub png_compression: u8,     // 0-9 for PNG compression level
@@ -75,10 +102,40 @@ pub fn optimize_image(
     filename: &str,
     options_js: JsValue,
 ) -> Result<JsValue, JsValue> {
+    console_log!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console_log!("🖼️  Starting optimization for: {}", filename);
+    console_log!("📦 Input size: {} bytes ({:.2} KB)", data.len(), data.len() as f64 / 1024.0);
+    
     let options: OptimizeOptions = serde_wasm_bindgen::from_value(options_js)
         .unwrap_or_else(|_| OptimizeOptions::default());
 
+    console_debug!("⚙️  Options:");
+    console_debug!("   - quality: {}", options.quality);
+    console_debug!("   - png_compression: {}", options.png_compression);
+    console_debug!("   - strip_metadata: {}", options.strip_metadata);
+    console_debug!("   - png_quantize: {}", options.png_quantize);
+    console_debug!("   - png_colors: {}", options.png_colors);
+    console_debug!("   - png_dithering: {} (level: {})", options.png_dithering, options.png_dithering_level);
+    console_debug!("   - png_auto: {} (level: {})", options.png_auto, options.png_auto_level);
+    console_debug!("   - jpeg_auto: {} (level: {})", options.jpeg_auto, options.jpeg_auto_level);
+    console_debug!("   - resize_enabled: {} (max: {}x{})", options.resize_enabled, options.max_width, options.max_height);
+
     let result = optimize_image_internal(data, filename, &options);
+    
+    if result.success {
+        let savings = if result.original_size > 0 {
+            ((result.original_size - result.optimized_size) as f64 / result.original_size as f64) * 100.0
+        } else {
+            0.0
+        };
+        console_log!("✅ Optimization complete!");
+        console_log!("   Original: {} bytes → Optimized: {} bytes", result.original_size, result.optimized_size);
+        console_log!("   Savings: {:.1}%", savings);
+        console_log!("   Dimensions: {}x{} → {}x{}", result.original_width, result.original_height, result.new_width, result.new_height);
+    } else {
+        console_warn!("❌ Optimization failed: {:?}", result.error);
+    }
+    console_log!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     
     serde_wasm_bindgen::to_value(&result)
         .map_err(|e| JsValue::from_str(&e.to_string()))
@@ -296,6 +353,8 @@ fn resize_image_if_needed(img: image::DynamicImage, options: &OptimizeOptions) -
 }
 
 fn optimize_png(data: &[u8], options: &OptimizeOptions) -> Result<OptimizeOutput, String> {
+    console_info!("🔵 PNG Optimization started");
+    
     let img = image::load_from_memory_with_format(data, ImageFormat::Png)
         .map_err(|e| format!("Failed to decode PNG: {}", e))?;
     
@@ -306,23 +365,39 @@ fn optimize_png(data: &[u8], options: &OptimizeOptions) -> Result<OptimizeOutput
     let (width, height) = img.dimensions();
     let rgba = img.to_rgba8();
     
+    console_debug!("   Decoded PNG: {}x{} pixels", width, height);
+    if original_width != width || original_height != height {
+        console_debug!("   Resized from {}x{} to {}x{}", original_width, original_height, width, height);
+    }
+    
     // Collect all outputs to compare
     let mut outputs: Vec<Vec<u8>> = Vec::new();
     
     let target_colors = (options.png_colors as usize).clamp(2, 256);
+    console_debug!("   Target colors: {}", target_colors);
     
     // Manual quantization mode: ONLY use the user's specified color count
     if options.png_quantize && !options.png_auto {
+        console_debug!("   📋 Mode: Manual quantization ({} colors)", target_colors);
         if let Ok(quantized) = try_quantized_png(&rgba, width, height, target_colors, options) {
+            console_debug!("   ✓ Quantized PNG: {} bytes", quantized.len());
             outputs.push(quantized);
+        } else {
+            console_warn!("   ✗ Quantized PNG failed");
         }
         
         // Find the smallest output (should be just the quantized one)
         let best = outputs.into_iter().min_by_key(|o| o.len());
         
         let result_data = match best {
-            Some(output) => output, // Always use quantized result in manual mode
-            _ => data.to_vec(),
+            Some(output) => {
+                console_debug!("   📊 Using quantized result: {} bytes", output.len());
+                output
+            },
+            _ => {
+                console_debug!("   📊 Using original (no improvement)");
+                data.to_vec()
+            },
         };
         
         return Ok(OptimizeOutput {
@@ -336,50 +411,81 @@ fn optimize_png(data: &[u8], options: &OptimizeOptions) -> Result<OptimizeOutput
     
     // Count unique colors for auto mode decisions
     let color_info = if options.png_auto {
+        console_debug!("   🔍 Analyzing image colors...");
         count_unique_colors(&rgba)
     } else {
         ColorCountResult { count: 0, is_capped: false, has_alpha: false, is_grayscale: false }
     };
     let unique_colors = color_info.count;
     
+    if options.png_auto {
+        console_debug!("   📊 Color analysis: ~{} unique colors (capped: {}, alpha: {}, grayscale: {})", 
+            unique_colors, color_info.is_capped, color_info.has_alpha, color_info.is_grayscale);
+    }
+    
     // Auto-select compression effort based on color count when in auto mode
     let effective_options = if options.png_auto {
         let auto_compression = auto_select_compression_effort(unique_colors, options.png_compression);
+        console_debug!("   📋 Mode: Auto (level {}, compression {} → {})", 
+            options.png_auto_level, options.png_compression, auto_compression);
         let mut opts = options.clone();
         opts.png_compression = auto_compression;
         opts
     } else {
+        console_debug!("   📋 Mode: Manual (compression {})", options.png_compression);
         options.clone()
     };
     
     // Strategy 1: Try indexed PNG (palette mode) - lossless if ≤256 colors
+    console_debug!("   🎯 Strategy 1: Indexed PNG (≤256 colors)...");
     if let Ok(indexed) = try_indexed_png(&rgba, width, height, 256, &effective_options) {
+        console_debug!("   ✓ Indexed PNG: {} bytes", indexed.len());
         outputs.push(indexed);
+    } else {
+        console_debug!("   ✗ Indexed PNG: too many colors");
     }
     
     // Strategy 2: Auto mode quantization
     if options.png_auto && unique_colors > 256 {
         // Try multiple quantization levels and pick the best
         let color_levels = auto_select_color_levels(unique_colors, options.png_auto_level);
+        console_debug!("   🎯 Strategy 2: Quantization (trying {:?} colors)...", color_levels);
         for colors in color_levels {
             if let Ok(quantized) = try_quantized_png(&rgba, width, height, colors, &effective_options) {
+                console_debug!("   ✓ Quantized {} colors: {} bytes", colors, quantized.len());
                 outputs.push(quantized);
+            } else {
+                console_debug!("   ✗ Quantized {} colors: failed", colors);
             }
         }
     }
     
     // Strategy 3: Optimal direct encoding (grayscale/RGB/RGBA)
     let (color_type, image_data) = determine_optimal_color_type(&rgba);
+    console_debug!("   🎯 Strategy 3: Direct encoding ({:?})...", color_type);
     if let Ok(direct) = encode_png(width, height, color_type, BitDepth::Eight, &image_data, &effective_options) {
+        console_debug!("   ✓ Direct encoding: {} bytes", direct.len());
         outputs.push(direct);
+    } else {
+        console_debug!("   ✗ Direct encoding: failed");
     }
     
     // Find the smallest output
+    console_debug!("   📊 Comparing {} output variants...", outputs.len());
+    let output_sizes: Vec<usize> = outputs.iter().map(|o| o.len()).collect();
+    console_debug!("   Sizes: {:?}", output_sizes);
+    
     let best = outputs.into_iter().min_by_key(|o| o.len());
     
     let result_data = match best {
-        Some(output) if output.len() < data.len() => output,
-        _ => data.to_vec(), // Return original if we can't improve
+        Some(output) if output.len() < data.len() => {
+            console_debug!("   ✅ Best result: {} bytes (original: {} bytes)", output.len(), data.len());
+            output
+        },
+        _ => {
+            console_debug!("   ⚠️ No improvement, keeping original: {} bytes", data.len());
+            data.to_vec()
+        },
     };
     
     Ok(OptimizeOutput {
@@ -472,10 +578,10 @@ fn auto_select_color_levels(unique_colors: usize, auto_level: u8) -> Vec<usize> 
     match auto_level {
         1 => vec![256],                     // Lossless-ish only
         2..=3 => vec![256, 192],            // Light
-        4..=5 => vec![256, 128],            // Medium (default)
-        6..=7 => vec![256, 128, 64],        // Aggressive
-        8..=9 => vec![256, 128, 48],        // Very aggressive
-        10 => vec![256, 128, 64, 32],       // Maximum compression
+        4..=5 => vec![224, 192, 128],            // Medium (default)
+        6..=7 => vec![192, 128, 64],        // Aggressive
+        8..=9 => vec![96, 64, 32, 16],        // Very aggressive
+        10 => vec![64, 32, 16, 8],       // Maximum compression
         _ => vec![256, 128],                // Default fallback
     }
 }
@@ -670,6 +776,8 @@ fn try_quantized_png(
     target_colors: usize,
     options: &OptimizeOptions,
 ) -> Result<Vec<u8>, String> {
+    console_debug!("      🎨 NeuQuant quantization: {} colors target", target_colors);
+    
     // Filter out fully transparent pixels for better color selection
     // Transparent pixels shouldn't influence the palette
     let opaque_pixels: Vec<u8> = rgba.pixels()
@@ -679,6 +787,7 @@ fn try_quantized_png(
     
     // If all pixels are transparent, use original data
     let quantize_pixels = if opaque_pixels.is_empty() {
+        console_debug!("      ⚠️ All pixels transparent, using all pixels for quantization");
         rgba.pixels().flat_map(|p| p.0).collect()
     } else {
         opaque_pixels
@@ -699,6 +808,8 @@ fn try_quantized_png(
         // Smaller images: can afford more thorough sampling
         3
     };
+    
+    console_debug!("      Sample faction: 1/{} ({} total pixels)", sample_faction, total_pixels);
     
     // Create quantizer with filtered pixels
     let nq = NeuQuant::new(sample_faction, target_colors, &quantize_pixels);
@@ -731,9 +842,14 @@ fn try_quantized_png(
         && options.png_dithering_level > 0.0 
         && total_pixels <= 2_000_000;  // Skip dithering for images > 2MP
     
+    console_debug!("      Dithering: {} (enabled: {}, level: {}, pixels: {})", 
+        use_dithering, options.png_dithering, options.png_dithering_level, total_pixels);
+    
     let indices = if use_dithering {
+        console_debug!("      Applying Floyd-Steinberg dithering...");
         apply_floyd_steinberg_dithering(rgba, &palette, options.png_dithering_level)
     } else {
+        console_debug!("      Using nearest-color mapping (no dithering)");
         // Simple nearest-color mapping without dithering
         rgba.pixels()
             .map(|p| {
@@ -743,6 +859,7 @@ fn try_quantized_png(
             .collect()
     };
     
+    console_debug!("      Encoding indexed PNG with {} palette entries...", palette.len());
     encode_indexed_png(width, height, &palette, &indices, options)
 }
 
@@ -986,6 +1103,7 @@ fn find_optimal_jpeg_quality(
 }
 
 fn optimize_jpeg(data: &[u8], options: &OptimizeOptions) -> Result<OptimizeOutput, String> {
+    console_info!("🟡 JPEG Optimization started");
     let original_size = data.len();
     
     let img = image::load_from_memory_with_format(data, ImageFormat::Jpeg)
@@ -997,6 +1115,11 @@ fn optimize_jpeg(data: &[u8], options: &OptimizeOptions) -> Result<OptimizeOutpu
     let img = resize_result.img;
     let rgb_image = img.to_rgb8();
     let (width, height) = rgb_image.dimensions();
+    
+    console_debug!("   Decoded JPEG: {}x{} pixels", width, height);
+    if original_width != width || original_height != height {
+        console_debug!("   Resized from {}x{} to {}x{}", original_width, original_height, width, height);
+    }
     
     let mut best_encoded: Option<Vec<u8>> = None;
     
@@ -1011,8 +1134,13 @@ fn optimize_jpeg(data: &[u8], options: &OptimizeOptions) -> Result<OptimizeOutpu
             _ => vec![0.50, 0.35, 0.25],         // Maximum: 50-75% reduction
         };
         
+        console_debug!("   📋 Mode: Auto (level {}, quality {})", options.jpeg_auto_level, options.quality);
+        console_debug!("   Target ratios: {:?}", target_ratios);
+        
         // First, try the user-specified quality
+        console_debug!("   🎯 Trying quality {}...", options.quality);
         if let Ok(encoded) = encode_jpeg(&rgb_image, width, height, options.quality) {
+            console_debug!("   ✓ Quality {}: {} bytes", options.quality, encoded.len());
             if encoded.len() < original_size {
                 best_encoded = Some(encoded);
             }
@@ -1021,30 +1149,46 @@ fn optimize_jpeg(data: &[u8], options: &OptimizeOptions) -> Result<OptimizeOutpu
         // Then try binary search for each target ratio
         for ratio in target_ratios {
             let target_size = (original_size as f32 * ratio) as usize;
+            console_debug!("   🎯 Trying ratio {:.0}% (target: {} bytes)...", ratio * 100.0, target_size);
             
             // Only try if target is smaller than what we have
             if best_encoded.as_ref().map_or(true, |b| target_size < b.len()) {
-                if let Some((encoded, _quality)) = find_optimal_jpeg_quality(
+                if let Some((encoded, quality)) = find_optimal_jpeg_quality(
                     &rgb_image, width, height, target_size, 35, options.quality
                 ) {
+                    console_debug!("   ✓ Found quality {}: {} bytes", quality, encoded.len());
                     // Only keep if it's actually smaller
                     if best_encoded.as_ref().map_or(true, |b| encoded.len() < b.len()) {
                         best_encoded = Some(encoded);
                     }
+                } else {
+                    console_debug!("   ✗ No quality found for target");
                 }
+            } else {
+                console_debug!("   ⏭️ Skipped (already have smaller result)");
             }
         }
     } else {
         // Manual mode: just use specified quality
+        console_debug!("   📋 Mode: Manual (quality {})", options.quality);
         if let Ok(encoded) = encode_jpeg(&rgb_image, width, height, options.quality) {
+            console_debug!("   ✓ Encoded: {} bytes", encoded.len());
             best_encoded = Some(encoded);
+        } else {
+            console_warn!("   ✗ Encoding failed");
         }
     }
     
     // CRITICAL: Only return encoded if it's STRICTLY smaller than original
     let result_data = match best_encoded {
-        Some(encoded) if encoded.len() < original_size => encoded,
-        _ => data.to_vec(),  // Return original unchanged
+        Some(encoded) if encoded.len() < original_size => {
+            console_debug!("   ✅ Best result: {} bytes (original: {} bytes)", encoded.len(), original_size);
+            encoded
+        },
+        _ => {
+            console_debug!("   ⚠️ No improvement, keeping original: {} bytes", original_size);
+            data.to_vec()
+        },
     };
     
     Ok(OptimizeOutput {

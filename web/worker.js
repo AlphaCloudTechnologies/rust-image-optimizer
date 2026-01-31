@@ -18,6 +18,8 @@ async function initWasm() {
 
 // Process a single image
 function processImage(data, filename, options, id) {
+    console.log('📨 Worker received options:', JSON.stringify(options, null, 2));
+    
     if (!wasmReady) {
         return {
             id,

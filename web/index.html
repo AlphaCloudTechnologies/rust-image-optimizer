@@ -1345,26 +1345,66 @@
     </div>
 
     <script type="module">
-        import init, { optimize_image, get_default_options, convert_png_to_jpeg } from './image_optimizer.js';
-
         let wasmReady = false;
         let images = [];
         let imageIdCounter = 0;
+        let worker = null;
+        let pendingCallbacks = new Map(); // Track pending worker callbacks
 
-        // Initialize WASM
+        // Initialize Web Worker
         async function initWasm() {
             const overlay = document.getElementById('loadingOverlay');
             overlay.classList.add('active');
             
             try {
-                await init();
-                wasmReady = true;
-                console.log('WASM initialized successfully');
+                // Create worker
+                worker = new Worker('./worker.js', { type: 'module' });
+                
+                // Wait for worker to be ready
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Worker initialization timeout'));
+                    }, 30000);
+                    
+                    worker.onmessage = function(e) {
+                        if (e.data.type === 'ready') {
+                            clearTimeout(timeout);
+                            wasmReady = true;
+                            console.log('WASM Worker initialized successfully');
+                            resolve();
+                        } else if (e.data.type === 'error') {
+                            clearTimeout(timeout);
+                            reject(new Error(e.data.error));
+                        }
+                    };
+                    
+                    worker.onerror = function(err) {
+                        clearTimeout(timeout);
+                        reject(err);
+                    };
+                });
+                
+                // Set up ongoing message handler
+                worker.onmessage = handleWorkerMessage;
+                
             } catch (error) {
-                console.error('Failed to initialize WASM:', error);
+                console.error('Failed to initialize WASM Worker:', error);
                 alert('Failed to load the image optimizer. Please refresh the page.');
             } finally {
                 overlay.classList.remove('active');
+            }
+        }
+
+        // Handle messages from worker
+        function handleWorkerMessage(e) {
+            const { id, type, result } = e.data;
+            
+            if (type === 'result' || type === 'convert_result') {
+                const callback = pendingCallbacks.get(id);
+                if (callback) {
+                    pendingCallbacks.delete(id);
+                    callback(result);
+                }
             }
         }
 
@@ -1398,56 +1438,45 @@
             };
         }
 
-        // Process a single image
+        // Process a single image via Web Worker
         async function processImage(file, id) {
             const arrayBuffer = await file.arrayBuffer();
-            const data = new Uint8Array(arrayBuffer);
             const options = getOptions();
 
-            try {
-                const result = optimize_image(data, file.name, options);
-                return {
+            return new Promise((resolve) => {
+                // Register callback for this request
+                pendingCallbacks.set(id, (result) => {
+                    resolve({
+                        id,
+                        filename: file.name,
+                        originalFile: file,
+                        originalSize: file.size,
+                        optimizedSize: result.optimized_size || 0,
+                        optimizedData: result.success && result.data ? new Uint8Array(result.data) : null,
+                        success: result.success,
+                        error: result.error,
+                        format: result.format || 'unknown',
+                        originalWidth: result.original_width || 0,
+                        originalHeight: result.original_height || 0,
+                        newWidth: result.new_width || 0,
+                        newHeight: result.new_height || 0,
+                        options: { ...options },
+                        originalPalette: result.original_palette || [],
+                        optimizedPalette: result.optimized_palette || [],
+                        originalColors: result.original_colors || 0,
+                        optimizedColors: result.optimized_colors || 0
+                    });
+                });
+
+                // Send to worker
+                worker.postMessage({
+                    type: 'optimize',
                     id,
+                    data: arrayBuffer,
                     filename: file.name,
-                    originalFile: file,
-                    originalSize: file.size,
-                    optimizedSize: result.optimized_size,
-                    optimizedData: result.success ? new Uint8Array(result.data) : null,
-                    success: result.success,
-                    error: result.error,
-                    format: result.format,
-                    originalWidth: result.original_width,
-                    originalHeight: result.original_height,
-                    newWidth: result.new_width,
-                    newHeight: result.new_height,
-                    options: { ...options },
-                    originalPalette: result.original_palette || [],
-                    optimizedPalette: result.optimized_palette || [],
-                    originalColors: result.original_colors || 0,
-                    optimizedColors: result.optimized_colors || 0
-                };
-            } catch (error) {
-                return {
-                    id,
-                    filename: file.name,
-                    originalFile: file,
-                    originalSize: file.size,
-                    optimizedSize: 0,
-                    optimizedData: null,
-                    success: false,
-                    error: error.message,
-                    format: 'unknown',
-                    originalWidth: 0,
-                    originalHeight: 0,
-                    newWidth: 0,
-                    newHeight: 0,
-                    options: { ...options },
-                    originalPalette: [],
-                    optimizedPalette: [],
-                    originalColors: 0,
-                    optimizedColors: 0
-                };
-            }
+                    options
+                });
+            });
         }
 
         // Format settings display
@@ -1773,7 +1802,7 @@
             updateGrid();
         }
 
-        // Convert PNG to JPEG and add as new row
+        // Convert PNG to JPEG and add as new row (via Web Worker)
         async function convertToJpeg(image) {
             if (!image.originalFile || image.format !== 'png') return;
             
@@ -1805,45 +1834,50 @@
             });
             updateGrid();
             
-            // Convert PNG to JPEG
+            // Convert PNG to JPEG via worker
             await nextFrame();
             const arrayBuffer = await image.originalFile.arrayBuffer();
-            const data = new Uint8Array(arrayBuffer);
             
-            try {
-                const result = convert_png_to_jpeg(data, image.filename, currentOptions);
+            // Create promise for worker response
+            const result = await new Promise((resolve) => {
+                pendingCallbacks.set(newId, resolve);
                 
-                const convertedResult = {
+                worker.postMessage({
+                    type: 'convert',
                     id: newId,
-                    filename: result.filename,
-                    originalFile: image.originalFile,
-                    originalSize: image.originalFile.size,
-                    optimizedSize: result.optimized_size,
-                    optimizedData: result.success ? new Uint8Array(result.data) : null,
-                    success: result.success,
-                    error: result.error,
-                    format: result.format,
-                    originalWidth: result.original_width,
-                    originalHeight: result.original_height,
-                    newWidth: result.new_width,
-                    newHeight: result.new_height,
-                    options: { ...currentOptions },
-                    originalPalette: result.original_palette || [],
-                    optimizedPalette: result.optimized_palette || [],
-                    originalColors: result.original_colors || 0,
-                    optimizedColors: result.optimized_colors || 0
-                };
-                
-                // Update the placeholder with result
-                const idx = images.findIndex(img => img.id === newId);
-                if (idx !== -1) {
-                    images[idx] = convertedResult;
-                }
-            } catch (error) {
-                const idx = images.findIndex(img => img.id === newId);
-                if (idx !== -1) {
+                    data: arrayBuffer,
+                    filename: image.filename,
+                    options: currentOptions
+                });
+            });
+            
+            // Update the placeholder with result
+            const idx = images.findIndex(img => img.id === newId);
+            if (idx !== -1) {
+                if (result.success) {
+                    images[idx] = {
+                        id: newId,
+                        filename: result.filename || newFilename,
+                        originalFile: image.originalFile,
+                        originalSize: image.originalFile.size,
+                        optimizedSize: result.optimized_size,
+                        optimizedData: result.data ? new Uint8Array(result.data) : null,
+                        success: result.success,
+                        error: result.error,
+                        format: result.format,
+                        originalWidth: result.original_width,
+                        originalHeight: result.original_height,
+                        newWidth: result.new_width,
+                        newHeight: result.new_height,
+                        options: { ...currentOptions },
+                        originalPalette: result.original_palette || [],
+                        optimizedPalette: result.optimized_palette || [],
+                        originalColors: result.original_colors || 0,
+                        optimizedColors: result.optimized_colors || 0
+                    };
+                } else {
                     images[idx].success = false;
-                    images[idx].error = error.message;
+                    images[idx].error = result.error;
                     images[idx].processing = false;
                 }
             }

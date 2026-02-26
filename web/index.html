@@ -1240,6 +1240,10 @@
                 <div class="options-column">
                     <div class="options-column-header">PNG</div>
                     <div class="options-column-content">
+                        <div class="option-group toggle-group">
+                            <div class="toggle" id="convertPngToJpeg"></div>
+                            <label>PNG → JPEG</label>
+                        </div>
                         <div class="option-group slider-group">
                             <label>Level <span class="value-display" id="pngCompressionValue">6</span></label>
                             <input type="range" id="pngCompression" min="0" max="9" value="6">
@@ -1472,7 +1476,8 @@
                 jpeg_auto_level: parseInt(document.getElementById('jpegAutoLevel').value),
                 resize_enabled: document.getElementById('resizeEnabled').classList.contains('active'),
                 max_width: parseInt(document.getElementById('maxWidth').value) || 1200,
-                max_height: parseInt(document.getElementById('maxHeight').value) || 1200
+                max_height: parseInt(document.getElementById('maxHeight').value) || 1200,
+                convert_png_to_jpeg: document.getElementById('convertPngToJpeg').classList.contains('active')
             };
         }
 
@@ -1480,13 +1485,14 @@
         async function processImage(file, id) {
             const arrayBuffer = await file.arrayBuffer();
             const options = getOptions();
+            const isPng = file.name.toLowerCase().endsWith('.png');
+            const shouldConvert = isPng && options.convert_png_to_jpeg;
 
             return new Promise((resolve) => {
-                // Register callback for this request
                 pendingCallbacks.set(id, (result) => {
                     resolve({
                         id,
-                        filename: file.name,
+                        filename: result.filename || file.name,
                         originalFile: file,
                         originalSize: file.size,
                         optimizedSize: result.optimized_size || 0,
@@ -1502,13 +1508,13 @@
                         originalPalette: result.original_palette || [],
                         optimizedPalette: result.optimized_palette || [],
                         originalColors: result.original_colors || 0,
-                        optimizedColors: result.optimized_colors || 0
+                        optimizedColors: result.optimized_colors || 0,
+                        convertedFromPng: shouldConvert && result.success
                     });
                 });
 
-                // Send to worker
                 worker.postMessage({
-                    type: 'optimize',
+                    type: shouldConvert ? 'convert' : 'optimize',
                     id,
                     data: arrayBuffer,
                     filename: file.name,
@@ -1522,7 +1528,6 @@
             if (!image.options) return '—';
             
             const opts = image.options;
-            // Check format or infer from filename
             const filename = image.filename.toLowerCase();
             const isPng = image.format === 'png' || filename.endsWith('.png');
             
@@ -1537,8 +1542,16 @@
                 }
                 return lines.join('');
             } else {
-                // JPEG
-                return `<span class="setting-line"><span class="setting-label">Quality:</span> <span class="setting-value">${opts.quality}</span></span>`;
+                let lines = [];
+                lines.push(`<span class="setting-line"><span class="setting-label">Quality:</span> <span class="setting-value">${opts.quality}</span></span>`);
+                if (opts.jpeg_auto) {
+                    lines.push(`<span class="setting-line"><span class="setting-label">Auto:</span> <span class="setting-value">On</span></span>`);
+                    lines.push(`<span class="setting-line"><span class="setting-label">Effort:</span> <span class="setting-value">${opts.jpeg_auto_level}</span></span>`);
+                }
+                if (image.convertedFromPng) {
+                    lines.push(`<span class="setting-line"><span class="setting-label">Source:</span> <span class="setting-value" style="color:var(--accent)">PNG→JPG</span></span>`);
+                }
+                return lines.join('');
             }
         }
 
@@ -1934,6 +1947,7 @@
                         optimizedPalette: result.optimized_palette || [],
                         originalColors: result.original_colors || 0,
                         optimizedColors: result.optimized_colors || 0,
+                        convertedFromPng: true,
                         timeTaken: timeTaken
                     };
                 } else {
@@ -2032,6 +2046,11 @@
             // Toggles
             stripMetadata.addEventListener('click', () => {
                 stripMetadata.classList.toggle('active');
+            });
+
+            const convertPngToJpeg = document.getElementById('convertPngToJpeg');
+            convertPngToJpeg.addEventListener('click', () => {
+                convertPngToJpeg.classList.toggle('active');
             });
 
             pngAuto.addEventListener('click', () => {
